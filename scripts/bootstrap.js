@@ -2,22 +2,23 @@
 
 /* eslint-disable global-require */
 
-const { lstatSync, readdirSync } = require('fs');
+const { spawnSync } = require('child_process');
 const { join } = require('path');
 const { maxConcurrentTasks } = require('./utils/concurrency');
-const { checkDependenciesAndRun, spawn } = require('./utils/cli-utils');
+
+const spawn = (command, options = {}) => {
+  return spawnSync(`${command}`, {
+    shell: true,
+    stdio: 'inherit',
+    ...options,
+  });
+};
 
 function run() {
   const prompts = require('prompts');
   const program = require('commander');
   const chalk = require('chalk');
   const log = require('npmlog');
-
-  const isTgz = (source) => lstatSync(source).isFile() && source.match(/.tgz$/);
-  const getDirectories = (source) =>
-    readdirSync(source)
-      .map((name) => join(source, name))
-      .filter(isTgz);
 
   log.heading = 'storybook';
   const prefix = 'bootstrap';
@@ -60,13 +61,48 @@ function run() {
   const tasks = {
     core: createTask({
       name: `Core & Examples ${chalk.gray('(core)')}`,
-      defaultValue: true,
+      defaultValue: false,
       option: '--core',
       command: () => {
         log.info(prefix, 'yarn workspace');
       },
-      pre: ['install', 'build', 'manager'],
+      pre: ['install', 'build'],
       order: 1,
+    }),
+    prep: createTask({
+      name: `Prep for development ${chalk.gray('(prep)')}`,
+      defaultValue: true,
+      option: '--prep',
+      command: () => {
+        log.info(prefix, 'prepare');
+        spawn(
+          `nx run-many --target="prepare" --all --parallel --exclude=@storybook/addon-storyshots,@storybook/addon-storyshots-puppeteer -- --reset`
+        );
+      },
+      order: 2,
+    }),
+    retry: createTask({
+      name: `Core & Examples but only build previously failed ${chalk.gray('(core)')}`,
+      defaultValue: true,
+      option: '--retry',
+      command: () => {
+        log.info(prefix, 'prepare');
+        spawn(
+          `nx run-many --target=prepare --all --parallel --only-failed ${
+            process.env.CI ? `--max-parallel=${maxConcurrentTasks}` : ''
+          }`
+        );
+      },
+      order: 1,
+    }),
+    cleanup: createTask({
+      name: `Remove compiled dist directories ${chalk.gray('(cleanup)')}`,
+      defaultValue: false,
+      option: '--cleanup',
+      command: () => {
+        spawn('npm run clean:dist');
+      },
+      order: 0,
     }),
     reset: createTask({
       name: `Clean repository ${chalk.red('(reset)')}`,
@@ -74,7 +110,7 @@ function run() {
       option: '--reset',
       command: () => {
         log.info(prefix, 'git clean');
-        spawn('node -r esm ./scripts/reset.js');
+        spawn(`node -r esm ${join(__dirname, 'reset.js')}`);
       },
       order: 0,
     }),
@@ -93,40 +129,21 @@ function run() {
       defaultValue: false,
       option: '--build',
       command: () => {
-        log.info(prefix, 'prepare');
+        log.info(prefix, 'build');
         spawn(
-          `nx run-many --target=prepare --all --parallel ${
+          `nx run-many --target="prepare" --all --parallel=8 ${
             process.env.CI ? `--max-parallel=${maxConcurrentTasks}` : ''
-          }`
+          } -- --reset --optimized`
         );
       },
       order: 2,
-    }),
-    manager: createTask({
-      name: `Generate prebuilt manager UI ${chalk.gray('(manager)')}`,
-      defaultValue: false,
-      option: '--manager',
-      command: () => {
-        spawn('yarn build-manager');
-      },
-      order: 3,
-    }),
-    packs: createTask({
-      name: `Build tarballs of packages ${chalk.gray('(build-packs)')}`,
-      defaultValue: false,
-      option: '--packs',
-      command: () => {
-        spawn('yarn build-packs');
-      },
-      check: () => getDirectories(join(__dirname, '..', 'packs')).length === 0,
-      order: 5,
     }),
     registry: createTask({
       name: `Run local registry ${chalk.gray('(reg)')}`,
       defaultValue: false,
       option: '--reg',
       command: () => {
-        spawn('yarn local-registry --publish --open');
+        spawn('yarn local-registry --publish --open --port 6000');
       },
       order: 11,
     }),
@@ -135,16 +152,16 @@ function run() {
       defaultValue: false,
       option: '--dev',
       command: () => {
-        spawn('yarn dev');
+        spawn('yarn build');
       },
       order: 9,
     }),
   };
 
   const groups = {
-    main: ['core'],
-    buildtasks: ['install', 'build', 'manager', 'packs'],
-    devtasks: ['dev', 'registry', 'reset'],
+    main: ['prep', 'core'],
+    buildtasks: ['install', 'build'],
+    devtasks: ['dev', 'registry', 'cleanup', 'reset'],
   };
 
   Object.keys(tasks)
@@ -205,7 +222,7 @@ function run() {
             if (sure) {
               return list;
             }
-            throw new Error('problem is between keyboard and chair');
+            throw new Error('Cleanup canceled');
           });
         }
         return list;
@@ -238,4 +255,4 @@ function run() {
     });
 }
 
-checkDependenciesAndRun(run);
+run();
