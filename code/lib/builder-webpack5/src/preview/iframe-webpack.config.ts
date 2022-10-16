@@ -1,9 +1,7 @@
 import path from 'path';
-import { dedent } from 'ts-dedent';
 import { DefinePlugin, HotModuleReplacementPlugin, ProgressPlugin, ProvidePlugin } from 'webpack';
 import type { Configuration } from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
-// @ts-ignore // -- this has typings for webpack4 in it, won't work
 import CaseSensitivePathsPlugin from 'case-sensitive-paths-webpack-plugin';
 import TerserWebpackPlugin from 'terser-webpack-plugin';
 import VirtualModulePlugin from 'webpack-virtual-modules';
@@ -17,6 +15,8 @@ import {
   normalizeStories,
   readTemplate,
   loadPreviewOrConfigFile,
+  isPreservingSymlinks,
+  getFrameworkName,
 } from '@storybook/core-common';
 import { toRequireContextString, toImportFn } from '@storybook/core-webpack';
 import type { BuilderOptions, TypescriptOptions } from '../types';
@@ -35,7 +35,6 @@ const storybookPaths: Record<string, string> = {
     'core-events',
     'router',
     'theming',
-    'semver',
     'preview-web',
     'client-api',
     'client-logger',
@@ -66,15 +65,7 @@ export default async (
     serverChannelUrl,
   } = options;
 
-  const framework = await presets.apply('framework', undefined);
-  if (!framework) {
-    throw new Error(dedent`
-      You must to specify a framework in '.storybook/main.js' config.
-
-      https://github.com/storybookjs/storybook/blob/next/MIGRATION.md#framework-field-mandatory
-    `);
-  }
-  const frameworkName = typeof framework === 'string' ? framework : framework.name;
+  const frameworkName = await getFrameworkName(options);
   const frameworkOptions = await presets.apply('frameworkOptions');
 
   const isProd = configType === 'PRODUCTION';
@@ -86,11 +77,13 @@ export default async (
   const template = await presets.apply<string>('previewMainTemplate');
   const coreOptions = await presets.apply<CoreConfig>('core');
   const builderOptions: BuilderOptions =
-    typeof coreOptions.builder === 'string' ? {} : coreOptions.builder?.options || {};
+    typeof coreOptions.builder === 'string'
+      ? {}
+      : coreOptions.builder?.options || ({} as BuilderOptions);
   const docsOptions = await presets.apply<DocsOptions>('docs');
 
-  const configs = [
-    ...(await presets.apply('config', [], options)),
+  const previewAnnotations = [
+    ...(await presets.apply('previewAnnotations', [], options)),
     loadPreviewOrConfigFile(options),
   ].filter(Boolean);
   const entries = (await presets.apply('entries', [], options)) as string[];
@@ -116,7 +109,7 @@ export default async (
       ),
       {
         storiesFilename,
-        configs,
+        previewAnnotations,
       }
       // We need to double escape `\` for webpack. We may have some in windows paths
     ).replace(/\\/g, '\\\\');
@@ -132,21 +125,21 @@ export default async (
       path.join(__dirname, 'virtualModuleEntry.template.js')
     );
 
-    configs.forEach((configFilename: any) => {
+    previewAnnotations.forEach((previewAnnotationFilename: any) => {
       const clientApi = storybookPaths['@storybook/client-api'];
       const clientLogger = storybookPaths['@storybook/client-logger'];
 
       // NOTE: although this file is also from the `dist/cjs` directory, it is actually a ESM
       // file, see https://github.com/storybookjs/storybook/pull/16727#issuecomment-986485173
-      virtualModuleMapping[`${configFilename}-generated-config-entry.js`] = interpolate(
+      virtualModuleMapping[`${previewAnnotationFilename}-generated-config-entry.js`] = interpolate(
         entryTemplate,
         {
-          configFilename,
+          previewAnnotationFilename,
           clientApi,
           clientLogger,
         }
       );
-      entries.push(`${configFilename}-generated-config-entry.js`);
+      entries.push(`${previewAnnotationFilename}-generated-config-entry.js`);
     });
     if (stories.length > 0) {
       const storyTemplate = await readTemplate(
@@ -168,9 +161,13 @@ export default async (
   const shouldCheckTs = typescriptOptions.check && !typescriptOptions.skipBabel;
   const tsCheckOptions = typescriptOptions.checkOptions || {};
 
-  const { NODE_OPTIONS, NODE_PRESERVE_SYMLINKS } = process.env;
-  const isPreservingSymlinks =
-    !!NODE_PRESERVE_SYMLINKS || NODE_OPTIONS?.includes('--preserve-symlinks');
+  const cacheConfig = builderOptions.fsCache ? { cache: { type: 'filesystem' as const } } : {};
+  const lazyCompilationConfig =
+    builderOptions.lazyCompilation && !isProd
+      ? {
+          lazyCompilation: { entries: false },
+        }
+      : {};
 
   return {
     name: 'preview',
@@ -275,7 +272,7 @@ export default async (
       },
       // Set webpack to resolve symlinks based on whether the user has asked node to.
       // This feels like it should be default out-of-the-box in webpack :shrug:
-      symlinks: !isPreservingSymlinks,
+      symlinks: !isPreservingSymlinks(),
     },
     optimization: {
       splitChunks: {
@@ -301,5 +298,7 @@ export default async (
     performance: {
       hints: isProd ? 'warning' : false,
     },
+    ...cacheConfig,
+    experiments: { ...lazyCompilationConfig },
   };
 };

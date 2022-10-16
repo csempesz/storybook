@@ -2,12 +2,12 @@ name: Generate and push repros to the next branch
 
 on:
   schedule:
-    - cron: "2 2 */1 * *"
+    - cron: '2 2 */1 * *'
   workflow_dispatch:
   # To remove when the branch will be merged
   push:
     branches:
-      - shilman/add-angular-repro-template
+      - vite-frameworks-xyz
 
 jobs:
   generate:
@@ -15,6 +15,9 @@ jobs:
     env:
       YARN_ENABLE_IMMUTABLE_INSTALLS: false
     steps:
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 16
       - uses: actions/checkout@v2
       - name: Setup git user
         run: |
@@ -22,11 +25,10 @@ jobs:
           git config --global user.email "bot@storybook.js.org"
       - name: Install dependencies
         run: node ./scripts/check-dependencies.js
-      - name: Bootstrap Storybook libraries
-        run: yarn bootstrap --prep
-        working-directory: ./code
+      - name: Compile Storybook libraries
+        run: yarn task --task publish --start-from=auto --no-link
       - name: Generate repros
-        run: yarn generate-repros-next
+        run: yarn generate-repros-next --local-registry
         working-directory: ./code
       - name: Publish repros to GitHub
         run: yarn publish-repros --remote=https://storybook-bot:${{ secrets.PAT_STORYBOOK_BOT}}@github.com/storybookjs/repro-templates-temp.git --push

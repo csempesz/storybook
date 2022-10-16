@@ -41,13 +41,13 @@ const ButtonWrapper = styled.button<{
 
     svg: {
       display: 'inline-block',
-      height: small ? 14 : 16,
-      width: small ? 14 : 16,
+      height: small ? 12 : 14,
+      width: small ? 12 : 14,
 
       verticalAlign: 'top',
       marginRight: small ? 4 : 6,
-      marginTop: small ? -1 : -2,
-      marginBottom: small ? -1 : -2,
+      marginTop: small ? 0 : -1,
+      marginBottom: small ? 0 : -1,
 
       /* Necessary for js mouse events to not glitch out when hovering on svgs */
       pointerEvents: 'none',
@@ -74,14 +74,14 @@ const ButtonWrapper = styled.button<{
             display: 'block',
             margin: 0,
           },
-          ...(small ? { padding: 9 } : { padding: 12 }),
+          ...(small ? { padding: 10 } : { padding: 13 }),
         }
       : {},
   ({ theme, primary, secondary, gray }) => {
     let color;
 
     if (gray) {
-      color = theme.color.medium;
+      color = theme.color.mediumlight;
     } else if (secondary) {
       color = theme.color.secondary;
     } else if (primary) {
@@ -112,12 +112,9 @@ const ButtonWrapper = styled.button<{
   ({ theme, tertiary, inForm, small }) =>
     tertiary
       ? {
-          background:
-            theme.base === 'light'
-              ? darken(0.02, theme.input.background)
-              : lighten(0.02, theme.input.background),
+          background: theme.button.background,
           color: theme.input.color,
-          boxShadow: `${theme.input.border} 0 0 0 1px inset`,
+          boxShadow: `${theme.button.border} 0 0 0 1px inset`,
           borderRadius: theme.input.borderRadius,
 
           ...(inForm && small ? { padding: '10px 16px' } : {}),
@@ -125,8 +122,8 @@ const ButtonWrapper = styled.button<{
           '&:hover': {
             background:
               theme.base === 'light'
-                ? darken(0.05, theme.input.background)
-                : lighten(0.05, theme.input.background),
+                ? darken(0.02, theme.button.background)
+                : lighten(0.03, theme.button.background),
             ...(inForm
               ? {}
               : {
@@ -134,7 +131,7 @@ const ButtonWrapper = styled.button<{
                 }),
           },
           '&:active': {
-            background: theme.input.background,
+            background: theme.button.background,
           },
           '&:focus': {
             boxShadow: `${rgba(theme.color.secondary, 1)} 0 0 0 1px inset`,

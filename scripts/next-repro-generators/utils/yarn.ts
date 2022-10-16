@@ -9,6 +9,8 @@ interface SetupYarnOptions {
 }
 
 export async function setupYarn({ cwd, pnp = false, version = 'classic' }: SetupYarnOptions) {
+  // force yarn
+  await runCommand(`touch yarn.lock`, { cwd });
   await runCommand(`yarn set version ${version}`, { cwd });
   if (version === 'berry' && !pnp) {
     await runCommand('yarn config set nodeLinker node-modules', { cwd });
@@ -18,6 +20,7 @@ export async function setupYarn({ cwd, pnp = false, version = 'classic' }: Setup
 
 export async function localizeYarnConfigFiles(baseDir: string, beforeDir: string) {
   await Promise.allSettled([
+    runCommand(`touch yarn.lock`, { cwd: beforeDir }),
     move(join(baseDir, '.yarn'), join(beforeDir, '.yarn')),
     move(join(baseDir, '.yarnrc.yml'), join(beforeDir, '.yarnrc.yml')),
     move(join(baseDir, '.yarnrc'), join(beforeDir, '.yarnrc')),

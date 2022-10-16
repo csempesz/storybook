@@ -3,6 +3,8 @@
 - [From version 6.5.x to 7.0.0](#from-version-65x-to-700)
   - [Alpha release notes](#alpha-release-notes)
   - [Breaking changes](#breaking-changes)
+    - [`Story` type change to `StoryFn`, and the new `Story` type now refers to `StoryObj`](#story-type-change-to-storyfn-and-the-new-story-type-now-refers-to-storyobj)
+    - [Change of root html IDs](#change-of-root-html-ids)
     - [No more default export from `@storybook/addons`](#no-more-default-export-from-storybookaddons)
     - [Modern browser support](#modern-browser-support)
     - [No more configuration for manager](#no-more-configuration-for-manager)
@@ -16,7 +18,13 @@
     - [Docs modern inline rendering by default](#docs-modern-inline-rendering-by-default)
     - [Babel mode v7 by default](#babel-mode-v7-by-default)
     - [7.0 feature flags removed](#70-feature-flags-removed)
+    - [Vite builder uses vite config automatically](#vite-builder-uses-vite-config-automatically)
+    - [Vite cache moved to node_modules/.cache/.vite-storybook](#vite-cache-moved-to-node_modulescachevite-storybook)
     - [Removed docs.getContainer and getPage parameters](#removed-docsgetcontainer-and-getpage-parameters)
+    - [Removed STORYBOOK_REACT_CLASSES global](#removed-storybook_react_classes-global)
+    - [Icons API changed](#icons-api-changed)
+    - ['config' preset entry replaced with 'previewAnnotations'](#config-preset-entry-replaced-with-previewannotations)
+    - [Dropped support for Angular 12 and below](#dropped-support-for-angular-12-and-below)
   - [Docs Changes](#docs-changes)
     - [Standalone docs files](#standalone-docs-files)
     - [Referencing stories in docs files](#referencing-stories-in-docs-files)
@@ -234,6 +242,49 @@ In the meantime, these migration notes are the best available documentation on t
 
 ### Breaking changes
 
+#### `Story` type change to `StoryFn`, and the new `Story` type now refers to `StoryObj`
+
+In 6.x you were able to do this:
+
+```js
+import type { Story } from '@storybook/react';
+
+export const MyStory: Story = () => <div />;
+```
+
+But this will produce an error in 7.0 because `Story` is now a type that refers to the `StoryObj` type.
+You must now use the new `StoryFn` type:
+
+```js
+import type { StoryFn } from '@storybook/react';
+
+export const MyStory: StoryFn = () => <div />;
+```
+
+This change was done to improve the experience of writing CSF3 stories, which is the recommended way of writing stories in 7.0:
+
+```js
+import type { Story } from '@storybook/react';
+import { Button, ButtonProps } from './Button';
+
+export default {
+  component: Button,
+};
+
+export const Primary: Story<ButtonProps> = {
+  variant: 'primary',
+};
+```
+
+If you want to be explicit, you can also import `StoryObj` instead of `Story`, they are the same type.
+
+For Storybook for react users: We also changed `ComponentStory` to refer to `ComponentStoryObj` instead of `ComponentStoryFn`, so if you were using `ComponentStory` you should now import/use `ComponentStoryFn` instead.
+
+You can read more about the CSF3 format here: https://storybook.js.org/blog/component-story-format-3-0/
+
+#### Change of root html IDs
+
+The root ID unto which storybook renders stories is renamed from `root` to `#storybook-root` to avoid conflicts with user's code.
 
 #### No more default export from `@storybook/addons`
 
@@ -244,6 +295,7 @@ import { addons } from '@storybook/addons';
 ```
 
 The named export has been available since 6.0 or earlier, so your updated code will be backwards-compatible with older versions of Storybook.
+
 #### Modern browser support
 
 Starting in storybook 7.0, storybook will no longer support IE11, amongst other legacy browser versions.
@@ -253,10 +305,13 @@ This means code-features such as (but not limited to) `async/await`, arrow-funct
 Not just the runtime needs to support it, but some legacy loaders for webpack or other transpilation tools might need to be updated as well. For example certain versions of webpack 4 had parsers that could not parse the new syntax (e.g. optional chaining).
 
 Some addons or libraries might depended on this legacy browser support, and thus might break. You might get an error like:
+
 ```
 regeneratorRuntime is not defined
 ```
+
 To fix these errors, the addon will have to be re-released with a newer browser-target for transpilation. This often looks something like this (but it's dependent on the build system the addon uses):
+
 ```js
 // babel.config.js
 module.exports = {
@@ -272,7 +327,7 @@ module.exports = {
       },
     ],
   ],
-}
+};
 ```
 
 Here's an example PR to one of the storybook addons: https://github.com/storybookjs/addon-coverage/pull/3 doing just that.
@@ -380,10 +435,13 @@ In 7.0, frameworks also specify the builder to be used. For example, The current
 - `@storybook/html-webpack5`
 - `@storybook/preact-webpack5`
 - `@storybook/react-webpack5`
+- `@storybook/react-vite`
 - `@storybook/server-webpack5`
 - `@storybook/svelte-webpack5`
+- `@storybook/svelte-vite`
 - `@storybook/vue-webpack5`
 - `@storybook/vue3-webpack5`
+- `@storybook/vue3-vite`
 - `@storybook/web-components-webpack5`
 
 We will be expanding this list over the course of the 7.0 development cycle. More info on the rationale here: [Frameworks RFC](https://www.notion.so/chromatic-ui/Frameworks-RFC-89f8aafe3f0941ceb4c24683859ed65c).
@@ -464,9 +522,51 @@ In 7.0 we've removed the following feature flags:
 | `emotionAlias`      | This flag is no longer needed and should be deleted. |
 | `breakingChangesV7` | This flag is no longer needed and should be deleted. |
 
+#### Vite builder uses vite config automatically
+
+When using a [Vite-based framework](#framework-field-mandatory), Storybook will automatically use your `vite.config.(ctm)js` config file starting in 7.0.  
+Some settings will be overridden by storybook so that it can function properly, and the merged settings can be modified using `viteFinal` in `.storybook/main.js` (see the [Storybook Vite configuration docs](https://storybook.js.org/docs/react/builders/vite#configuration)).  
+If you were using `viteFinal` in 6.5 to simply merge in your project's standard vite config, you can now remove it.
+
+#### Vite cache moved to node_modules/.cache/.vite-storybook
+
+Previously, Storybook's Vite builder placed cache files in node_modules/.vite-storybook.  However, it's more common for tools to place cached files into `node_modules/.cache`, and putting them there makes it quick and easy to clear the cache for multiple tools at once.  We don't expect this change will cause any problems, but it's something that users of Storybook Vite projects should know about.  It can be configured by setting `cacheDir` in `viteFinal` within `.storybook/main.js` [Storybook Vite configuration docs](https://storybook.js.org/docs/react/builders/vite#configuration)). 
+
 #### Removed docs.getContainer and getPage parameters
 
 It is no longer possible to set `parameters.docs.getContainer()` and `getPage()`. Instead use `parameters.docs.container` or `parameters.docs.page` directly.
+
+#### Removed STORYBOOK_REACT_CLASSES global
+
+This was a legacy global variable from the early days of react docgen.  If you were using this variable, you can instead use docgen information which is added directly to components using `.__docgenInfo`.
+
+#### Icons API changed
+
+For addon authors who use the `Icons` component, its API has been updated in Storybook 7.
+
+```diff
+export interface IconsProps extends ComponentProps<typeof Svg> {
+-  icon?: IconKey;
+-  symbol?: IconKey;
++  icon: IconType;
++  useSymbol?: boolean;
+}
+```
+
+Full change here: https://github.com/storybookjs/storybook/pull/18809
+
+#### 'config' preset entry replaced with 'previewAnnotations'
+
+The preset field `'config'` has been replaced with `'previewAnnotations'`. `'config'` is now deprecated and will be removed in Storybook 8.0.
+
+Additionally, the internal field `'previewEntries'` has been removed. If you need a preview entry, just use a `'previewAnnotations'` file and don't export anything.
+
+#### Dropped support for Angular 12 and below
+
+Official [Angular 12 LTS support ends Nov 2022](https://angular.io/guide/releases#actively-supported-versions). With that, Storybook also drops its support 
+for Angular 12 and below. 
+
+In order to use Storybook 7.0, you need to upgrade to at least Angular 13.
 
 ### Docs Changes
 
@@ -2122,7 +2222,7 @@ To configure a11y now, you have to specify configuration using story parameters,
 ```js
 export const parameters = {
   a11y: {
-    element: '#root',
+    element: '#storybook-root',
     config: {},
     options: {},
     manual: true,

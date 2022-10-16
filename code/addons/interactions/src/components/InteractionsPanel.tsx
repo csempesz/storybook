@@ -23,6 +23,7 @@ interface InteractionsPanelProps {
   interactions: (Call & {
     status?: CallStates;
     childCallIds: Call['id'][];
+    isHidden: boolean;
     isCollapsed: boolean;
     toggleCollapsed: () => void;
   })[];
@@ -59,7 +60,7 @@ const CaughtExceptionCode = styled.code(({ theme }) => ({
   lineHeight: 1,
   verticalAlign: 'top',
   background: 'rgba(0, 0, 0, 0.05)',
-  border: `1px solid ${theme.color.border}`,
+  border: `1px solid ${theme.appBorderColor}`,
   borderRadius: 3,
 }));
 const CaughtExceptionTitle = styled.div({
@@ -118,6 +119,7 @@ export const InteractionsPanel: React.FC<InteractionsPanelProps> = React.memo(
               controls={controls}
               controlStates={controlStates}
               childCallIds={call.childCallIds}
+              isHidden={call.isHidden}
               isCollapsed={call.isCollapsed}
               toggleCollapsed={call.toggleCollapsed}
               pausedAt={pausedAt}

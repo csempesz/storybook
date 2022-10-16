@@ -1,6 +1,5 @@
 import global from 'global';
-// @ts-ignore
-import semver from '@storybook/semver';
+import semver from 'semver';
 import memoize from 'memoizerific';
 
 import { version as currentVersion } from '../version';

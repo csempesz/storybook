@@ -9,7 +9,6 @@ dist
 junit.xml
 /repros
 /sandbox
-/built-sandboxes
 .verdaccio-cache
 
 # Yarn stuff
@@ -19,4 +18,4 @@ junit.xml
 !/**/.yarn/sdks
 !/**/.yarn/versions
 /**/.pnp.*
-/yarn.lock
+!/node_modules

@@ -17,11 +17,20 @@ type BabelParams = {
 };
 function createBabelOptions({ babelOptions, mdxBabelOptions, configureJSX }: BabelParams) {
   const babelPlugins = mdxBabelOptions?.plugins || babelOptions?.plugins || [];
+
+  const filteredBabelPlugins = babelPlugins.filter((p: any) => {
+    const name = Array.isArray(p) ? p[0] : p;
+    if (typeof name === 'string') {
+      return !name.includes('plugin-transform-react-jsx');
+    }
+    return true;
+  });
+
   const jsxPlugin = [
     require.resolve('@babel/plugin-transform-react-jsx'),
     { pragma: 'React.createElement', pragmaFrag: 'React.Fragment' },
   ];
-  const plugins = configureJSX ? [...babelPlugins, jsxPlugin] : babelPlugins;
+  const plugins = configureJSX ? [...filteredBabelPlugins, jsxPlugin] : babelPlugins;
   return {
     // don't use the root babelrc by default (users can override this in mdxBabelOptions)
     babelrc: false,
@@ -145,7 +154,7 @@ export async function webpack(
 export const storyIndexers = async (indexers: StoryIndexer[] | null) => {
   const mdxIndexer = async (fileName: string, opts: IndexerOptions) => {
     let code = (await fs.readFile(fileName, 'utf-8')).toString();
-    // @ts-ignore
+    // @ts-expect-error (Converted from ts-ignore)
     const { compile } = global.FEATURES?.previewMdx2
       ? await import('@storybook/mdx2-csf')
       : await import('@storybook/mdx1-csf');

@@ -22,7 +22,7 @@ const Icon = styled(Icons)<IconsProps>({
   height: 10,
   width: 10,
   minWidth: 10,
-  color: convert(themes.light).color.mediumdark,
+  color: convert(themes.light).textMutedColor,
   marginRight: 10,
   transition: 'transform 0.1s ease-in-out',
   alignSelf: 'center',
@@ -68,7 +68,7 @@ export const ListItem: React.FC<ListItemProps> = ({ item }) => {
       <Wrapper>
         <HeaderBar onClick={() => onToggle(!open)} role="button">
           <Icon
-            icon="chevrondown"
+            icon="arrowdown"
             color={convert(themes.light).appBorderColor}
             style={{
               transform: `rotate(${open ? 0 : -90}deg)`,

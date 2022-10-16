@@ -53,8 +53,7 @@ export class IFrame extends Component<IFrameProps> {
         id={id}
         title={title}
         src={src}
-        allowFullScreen={allowFullScreen}
-        // @ts-ignore
+        {...(allowFullScreen ? { allow: 'fullscreen' } : {})}
         loading="lazy"
         {...rest}
       />

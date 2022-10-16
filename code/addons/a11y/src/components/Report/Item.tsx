@@ -23,7 +23,7 @@ const Icon = styled(Icons)(({ theme }) => ({
   height: 10,
   width: 10,
   minWidth: 10,
-  color: theme.color.mediumdark,
+  color: theme.textMutedColor,
   marginRight: 10,
   transition: 'transform 0.1s ease-in-out',
   alignSelf: 'center',
@@ -75,7 +75,7 @@ export const Item = (props: ItemProps) => {
       <Wrapper>
         <HeaderBar onClick={() => onToggle(!open)} role="button">
           <Icon
-            icon="chevrondown"
+            icon="arrowdown"
             color="#9DA5AB"
             style={{
               transform: `rotate(${open ? 0 : -90}deg)`,

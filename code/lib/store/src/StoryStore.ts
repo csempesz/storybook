@@ -28,6 +28,7 @@ import type {
   PromiseLike,
   StoryIndex,
   V2CompatIndexEntry,
+  IndexEntry,
   StoryIndexV3,
   ModuleExports,
 } from './types';
@@ -118,15 +119,16 @@ export class StoryStore<TFramework extends AnyFramework> {
     importFn?: ModuleImportFn;
     storyIndex?: StoryIndex;
   }) {
-    if (!this.storyIndex) throw new Error(`onStoriesChanged called before initialization`);
+    await this.initializationPromise;
 
     if (importFn) this.importFn = importFn;
-    if (storyIndex) this.storyIndex.entries = storyIndex.entries;
+    // The index will always be set before the initialization promise returns
+    if (storyIndex) this.storyIndex!.entries = storyIndex.entries;
     if (this.cachedCSFFiles) await this.cacheAllCSFFiles();
   }
 
   // Get an entry from the index, waiting on initialization if necessary
-  async storyIdToEntry(storyId: StoryId) {
+  async storyIdToEntry(storyId: StoryId): Promise<IndexEntry> {
     await this.initializationPromise;
     // The index will always be set before the initialization promise returns
     return this.storyIndex!.storyIdToEntry(storyId);
