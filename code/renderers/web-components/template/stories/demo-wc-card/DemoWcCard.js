@@ -1,6 +1,6 @@
-import global from 'global';
+import { global } from '@storybook/global';
 import { LitElement, html } from 'lit';
-// eslint-disable-next-line import/extensions
+
 import { demoWcCardStyle } from './demoWcCardStyle.css.js';
 
 const { CustomEvent } = global;
@@ -69,7 +69,7 @@ export class DemoWcCard extends LitElement {
         </div>
       </div>
       <div id="back" part="back">
-        <div class="header">${this.header}</div>
+        <div class="header"><slot name="prefix"></slot> ${this.header}</div>
 
         <div class="content">
           ${this.rows.length === 0

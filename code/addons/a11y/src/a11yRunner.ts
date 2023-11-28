@@ -1,13 +1,9 @@
-import global from 'global';
-import { addons } from '@storybook/addons';
+import { global } from '@storybook/global';
+import { addons } from '@storybook/preview-api';
 import { EVENTS } from './constants';
-import { A11yParameters } from './params';
+import type { A11yParameters } from './params';
 
 const { document, window: globalWindow } = global;
-
-if (module && module.hot && module.hot.decline) {
-  module.hot.decline();
-}
 
 const channel = addons.getChannel();
 // Holds axe core running state
@@ -37,19 +33,30 @@ const run = async (storyId: string) => {
       const axe = (await import('axe-core')).default;
 
       const { element = '#storybook-root', config, options = {} } = input;
-      const htmlElement = document.querySelector(element);
+      const htmlElement = document.querySelector(element as string);
+
+      if (!htmlElement) {
+        return;
+      }
+
       axe.reset();
       if (config) {
         axe.configure(config);
       }
 
       const result = await axe.run(htmlElement, options);
+
+      // Axe result contains class instances, which telejson deserializes in a
+      // way that violates:
+      //  Content Security Policy directive: "script-src 'self' 'unsafe-inline'".
+      const resultJson = JSON.parse(JSON.stringify(result));
+
       // It's possible that we requested a new run on a different story.
       // Unfortunately, axe doesn't support a cancel method to abort current run.
       // We check if the story we run against is still the current one,
       // if not, trigger a new run using the current story
       if (activeStoryId === storyId) {
-        channel.emit(EVENTS.RESULT, result);
+        channel.emit(EVENTS.RESULT, resultJson);
       } else {
         active = false;
         run(activeStoryId);

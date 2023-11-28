@@ -1,10 +1,11 @@
 import * as React from 'react';
-import { AddonPanel, Link, Placeholder } from '@storybook/components';
-import { Call, CallStates, ControlStates } from '@storybook/instrumenter';
+import { Link, Placeholder } from '@storybook/components';
+import { type Call, CallStates, type ControlStates } from '@storybook/instrumenter';
 import { styled } from '@storybook/theming';
 import { transparentize } from 'polished';
 
 import { Subnav } from './Subnav';
+
 import { Interaction } from './Interaction';
 
 export interface Controls {
@@ -17,7 +18,6 @@ export interface Controls {
 }
 
 interface InteractionsPanelProps {
-  active: boolean;
   controls: Controls;
   controlStates: ControlStates;
   interactions: (Call & {
@@ -35,8 +35,6 @@ interface InteractionsPanelProps {
   calls: Map<string, any>;
   endRef?: React.Ref<HTMLDivElement>;
   onScrollToEnd?: () => void;
-  isRerunAnimating: boolean;
-  setIsRerunAnimating: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const Container = styled.div<{ withException: boolean }>(({ theme, withException }) => ({
@@ -78,7 +76,7 @@ const CaughtExceptionStack = styled.pre(({ theme }) => ({
 }));
 
 export const InteractionsPanel: React.FC<InteractionsPanelProps> = React.memo(
-  ({
+  function InteractionsPanel({
     calls,
     controls,
     controlStates,
@@ -90,13 +88,10 @@ export const InteractionsPanel: React.FC<InteractionsPanelProps> = React.memo(
     pausedAt,
     onScrollToEnd,
     endRef,
-    isRerunAnimating,
-    setIsRerunAnimating,
-    ...panelProps
-  }) => (
-    <AddonPanel {...panelProps}>
+  }) {
+    return (
       <Container withException={!!caughtException}>
-        {controlStates.debugger && (interactions.length > 0 || hasException || isRerunAnimating) && (
+        {(interactions.length > 0 || hasException) && (
           <Subnav
             controls={controls}
             controlStates={controlStates}
@@ -106,11 +101,9 @@ export const InteractionsPanel: React.FC<InteractionsPanelProps> = React.memo(
             }
             storyFileName={fileName}
             onScrollToEnd={onScrollToEnd}
-            isRerunAnimating={isRerunAnimating}
-            setIsRerunAnimating={setIsRerunAnimating}
           />
         )}
-        <div>
+        <div aria-label="Interactions list">
           {interactions.map((call) => (
             <Interaction
               key={call.id}
@@ -133,7 +126,7 @@ export const InteractionsPanel: React.FC<InteractionsPanelProps> = React.memo(
             </CaughtExceptionTitle>
             <CaughtExceptionDescription>
               This story threw an error after it finished rendering which means your interactions
-              couldn&apos;t be run. Go to this story&apos;s play function in {fileName} to fix.
+              couldn&apos; t be run.Go to this story&apos; s play function in {fileName} to fix.
             </CaughtExceptionDescription>
             <CaughtExceptionStack data-chromatic="ignore">
               {caughtException.stack || `${caughtException.name}: ${caughtException.message}`}
@@ -154,6 +147,6 @@ export const InteractionsPanel: React.FC<InteractionsPanelProps> = React.memo(
           </Placeholder>
         )}
       </Container>
-    </AddonPanel>
-  )
+    );
+  }
 );

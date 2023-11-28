@@ -1,5 +1,4 @@
-/* eslint-disable jest/no-standalone-expect */
-import globalThis from 'global';
+import { global as globalThis } from '@storybook/global';
 import {
   within,
   waitFor,
@@ -16,16 +15,36 @@ export default {
   },
 };
 
+export const Validation = {
+  play: async (context) => {
+    const { args, canvasElement, step } = context;
+    const canvas = within(canvasElement);
+
+    await step('Submit', async () => fireEvent.click(canvas.getByRole('button')));
+
+    await expect(args.onSuccess).not.toHaveBeenCalled();
+  },
+};
+
 export const Type = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.type(canvas.getByTestId('value'), 'test');
+    await userEvent.type(canvas.getByTestId('value'), 'foobar');
   },
 };
 
 export const Step = {
   play: async ({ step }) => {
     await step('Enter value', Type.play);
+  },
+};
+
+export const TypeAndClear = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(canvas.getByTestId('value'), 'initial value');
+    await userEvent.clear(canvas.getByTestId('value'));
+    await userEvent.type(canvas.getByTestId('value'), 'final value');
   },
 };
 
@@ -77,13 +96,27 @@ export const WithLoaders = {
   },
 };
 
-export const Validation = {
+export const UserEventSetup = {
   play: async (context) => {
     const { args, canvasElement, step } = context;
+    const user = userEvent.setup();
     const canvas = within(canvasElement);
-
-    await step('Submit', async () => fireEvent.click(canvas.getByRole('button')));
-
-    await expect(args.onSuccess).not.toHaveBeenCalled();
+    await step('Select, type and paste on input using user-event v14 setup', async () => {
+      const input = await canvas.getByRole('textbox');
+      await user.click(input);
+      await user.type(input, 'Pasting: ');
+      await user.paste('foobar');
+    });
+    await step('Tab and press enter on submit button', async () => {
+      await user.pointer([
+        { keys: '[TouchA>]', target: await canvas.getByRole('textbox') },
+        { keys: '[/TouchA]' },
+      ]);
+      await user.tab();
+      await user.keyboard('{enter}');
+      const submitButton = await canvas.findByRole('button');
+      await expect(submitButton).toHaveFocus();
+      await expect(args.onSuccess).toHaveBeenCalled();
+    });
   },
 };

@@ -1,4 +1,5 @@
-import type { ArgType, ArgTypes } from '@storybook/api';
+import invariant from 'tiny-invariant';
+import type { InputType, ArgTypes } from '@storybook/types';
 import { logger } from '@storybook/client-logger';
 import { getCustomElements, isValidComponent, isValidMetaData } from '..';
 
@@ -37,18 +38,21 @@ interface Module {
 interface Declaration {
   tagName: string;
 }
-interface Sections {
-  attributes?: any;
-  properties?: any;
-  events?: any;
-  slots?: any;
-  cssCustomProperties?: any;
-  cssShadowParts?: any;
-}
 
-function mapItem(item: TagItem, category: string): ArgType {
-  const type =
-    category === 'properties' ? { name: item.type?.text || item.type } : { name: 'void' };
+function mapItem(item: TagItem, category: string): InputType {
+  let type;
+  switch (category) {
+    case 'attributes':
+    case 'properties':
+      type = { name: item.type?.text || item.type };
+      break;
+    case 'slots':
+      type = { name: 'string' };
+      break;
+    default:
+      type = { name: 'void' };
+      break;
+  }
 
   return {
     name: item.name,
@@ -65,7 +69,7 @@ function mapItem(item: TagItem, category: string): ArgType {
   };
 }
 
-function mapEvent(item: TagItem): ArgType[] {
+function mapEvent(item: TagItem): InputType[] {
   let name = item.name
     .replace(/(-|_|:|\.|\s)+(.)?/g, (_match, _separator, chr: string) => {
       return chr ? chr.toUpperCase() : '';
@@ -88,6 +92,7 @@ function mapData(data: TagItem[], category: string) {
         switch (category) {
           case 'events':
             mapEvent(item).forEach((argType) => {
+              invariant(argType.name, `${argType} should have a name property.`);
               acc[argType.name] = argType;
             });
             break;
@@ -145,13 +150,13 @@ export const extractArgTypesFromElements = (tagName: string, customElements: Cus
   const metaData = getMetaData(tagName, customElements);
   return (
     metaData && {
-      ...mapData(metaData.attributes, 'attributes'),
-      ...mapData(metaData.members, 'properties'),
-      ...mapData(metaData.properties, 'properties'),
-      ...mapData(metaData.events, 'events'),
-      ...mapData(metaData.slots, 'slots'),
-      ...mapData(metaData.cssProperties, 'css custom properties'),
-      ...mapData(metaData.cssParts, 'css shadow parts'),
+      ...mapData(metaData.members ?? [], 'properties'),
+      ...mapData(metaData.properties ?? [], 'properties'),
+      ...mapData(metaData.attributes ?? [], 'attributes'),
+      ...mapData(metaData.events ?? [], 'events'),
+      ...mapData(metaData.slots ?? [], 'slots'),
+      ...mapData(metaData.cssProperties ?? [], 'css custom properties'),
+      ...mapData(metaData.cssParts ?? [], 'css shadow parts'),
     }
   );
 };

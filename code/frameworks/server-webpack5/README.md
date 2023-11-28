@@ -14,7 +14,7 @@ So you can develop UI components in isolation without worrying about app specifi
 
 ```sh
 cd my-app
-npx storybook init -t server
+npx storybook@latest init -t server
 ```
 
 To configure the server that Storybook will connect to, export a global parameter `parameters.server.url` in `.storybook/preview.js`:
@@ -33,7 +33,7 @@ For more information visit: [storybook.js.org](https://storybook.js.org)
 
 ## Writing Stories
 
-To write a story, use whatever API is natural for your server-side rendering framework to generate set of JSON or YAML files of stories analogous to CSF files (see the [`server-kitchen-sink`](../../examples/server-kitchen-sink/stories) example for ideas).
+To write a story, use whatever API is natural for your server-side rendering framework to generate set of JSON or YAML files of stories analogous to CSF files (see the [`server-kitchen-sink`](../../../test-storybooks/server-kitchen-sink/stories) example for ideas).
 
 ```json
 {
@@ -55,7 +55,7 @@ To write a story, use whatever API is natural for your server-side rendering fra
 In your `.storybook/main.js` you simply provide a glob specifying the location of those JSON files, e.g.
 
 ```js
-module.exports = {
+export default {
   stories: ['../stories/**/*.stories.json'],
 };
 ```
@@ -92,7 +92,7 @@ In particular the [View Component::Storybook](https://github.com/jonspalmer/view
 
 ## Server rendering
 
-The server rendering side of things is relatively straightfoward. When you browse to a story in the sidebar, Storybook will make a `fetch` request to `${parameters.server.url}/{parameters.server.id}` and display the HTML that is returned.
+The server rendering side of things is relatively straightforward. When you browse to a story in the sidebar, Storybook will make a `fetch` request to `${parameters.server.url}/{parameters.server.id}` and display the HTML that is returned.
 
 You need to ensure the route in your server app renders the appropriate HTML when called in that fashion.
 

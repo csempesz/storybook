@@ -1,4 +1,5 @@
-import type { Parameters } from '@storybook/addons';
+import invariant from 'tiny-invariant';
+import type { StorybookInternalParameters } from '@storybook/types';
 
 // addons, panels and events get unique names using a prefix
 export const PARAM_KEY = 'test';
@@ -7,7 +8,7 @@ export const PANEL_ID = `${ADDON_ID}/panel`;
 
 export const ADD_TESTS = `${ADDON_ID}/add_tests`;
 
-interface AddonParameters extends Parameters {
+interface AddonParameters extends StorybookInternalParameters {
   jest?: string | string[] | { disabled: true };
 }
 
@@ -23,7 +24,9 @@ export function defineJestParameter(parameters: AddonParameters): string[] | nul
   }
 
   if (jest === undefined && typeof filePath === 'string') {
-    const fileName = filePath.split('/').pop().split('.')[0];
+    const lastPath = filePath.split('/').pop();
+    invariant(lastPath != null, 'split should always return at least one value');
+    const fileName = lastPath.split('.')[0];
     return [fileName];
   }
 

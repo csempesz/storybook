@@ -1,17 +1,17 @@
-import { addons, mockChannel } from '@storybook/addons';
-import type { StoryContext } from '@storybook/addons';
+import { Addon_StoryContext } from '@storybook/types';
 
 import { Component } from '@angular/core';
-import { moduleMetadata } from './decorators';
-import { addDecorator, storiesOf, clearDecorators, getStorybook, configure } from '.';
+import { moduleMetadata, applicationConfig } from './decorators';
+import { AngularRenderer } from './types';
 
-const defaultContext: StoryContext = {
+const defaultContext: Addon_StoryContext<AngularRenderer> = {
   componentId: 'unspecified',
   kind: 'unspecified',
   title: 'unspecified',
   id: 'unspecified',
   name: 'unspecified',
   story: 'unspecified',
+  tags: [],
   parameters: {},
   initialArgs: {},
   args: {},
@@ -31,21 +31,77 @@ class MockService {}
 @Component({})
 class MockComponent {}
 
+describe('applicationConfig', () => {
+  const provider1 = () => {};
+  const provider2 = () => {};
+
+  it('should apply global config', () => {
+    expect(
+      applicationConfig({
+        providers: [provider1] as any,
+      })(() => ({}), defaultContext)
+    ).toEqual({
+      applicationConfig: {
+        providers: [provider1],
+      },
+    });
+  });
+
+  it('should apply story config', () => {
+    expect(
+      applicationConfig({
+        providers: [],
+      })(
+        () => ({
+          applicationConfig: {
+            providers: [provider2] as any,
+          },
+        }),
+        {
+          ...defaultContext,
+        }
+      )
+    ).toEqual({
+      applicationConfig: {
+        providers: [provider2],
+      },
+    });
+  });
+
+  it('should merge global and story config', () => {
+    expect(
+      applicationConfig({
+        providers: [provider1] as any,
+      })(
+        () => ({
+          applicationConfig: {
+            providers: [provider2] as any,
+          },
+        }),
+        {
+          ...defaultContext,
+        }
+      )
+    ).toEqual({
+      applicationConfig: {
+        providers: [provider1, provider2],
+      },
+    });
+  });
+});
+
 describe('moduleMetadata', () => {
   it('should add metadata to a story without it', () => {
     const result = moduleMetadata({
       imports: [MockModule],
       providers: [MockService],
     })(
-      () => ({
-        component: MockComponent,
-      }),
+      () => ({}),
       // deepscan-disable-next-line
       defaultContext
     );
 
     expect(result).toEqual({
-      component: MockComponent,
       moduleMetadata: {
         declarations: [],
         entryComponents: [],
@@ -105,35 +161,5 @@ describe('moduleMetadata', () => {
         providers: [MockService],
       },
     });
-  });
-
-  it('should work when added globally', () => {
-    const metadata = {
-      declarations: [MockComponent],
-      providers: [MockService],
-      entryComponents: [MockComponent],
-      imports: [MockModule],
-    };
-
-    addons.setChannel(mockChannel());
-
-    configure(() => {
-      addDecorator(moduleMetadata(metadata));
-      storiesOf('Test', module).add('Default', () => ({
-        component: MockComponent,
-      }));
-    }, {} as NodeModule);
-
-    const [storybook] = getStorybook();
-
-    expect(storybook.stories[0].render({}).moduleMetadata).toEqual({
-      declarations: [MockComponent],
-      providers: [MockService],
-      entryComponents: [MockComponent],
-      imports: [MockModule],
-      schemas: [],
-    });
-
-    clearDecorators();
   });
 });

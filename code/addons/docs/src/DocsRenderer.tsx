@@ -1,45 +1,77 @@
-import React from 'react';
-import ReactDOM from 'react-dom';
-import { AnyFramework, Parameters } from '@storybook/csf';
-import { DocsContextProps, DocsRenderFunction } from '@storybook/preview-web';
-import { components as htmlComponents } from '@storybook/components';
+import type { PropsWithChildren } from 'react';
+import React, { Component } from 'react';
+import { renderElement, unmountElement } from '@storybook/react-dom-shim';
+import type { Renderer, Parameters, DocsContextProps, DocsRenderFunction } from '@storybook/types';
 import { Docs, CodeOrSourceMdx, AnchorMdx, HeadersMdx } from '@storybook/blocks';
-import { MDXProvider } from '@mdx-js/react';
 
 // TS doesn't like that we export a component with types that it doesn't know about (TS4203)
 export const defaultComponents: Record<string, any> = {
-  ...htmlComponents,
   code: CodeOrSourceMdx,
   a: AnchorMdx,
   ...HeadersMdx,
 };
 
-export class DocsRenderer<TFramework extends AnyFramework> {
-  public render: DocsRenderFunction<TFramework>;
+class ErrorBoundary extends Component<
+  PropsWithChildren<{
+    showException: (err: Error) => void;
+  }>
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(err: Error) {
+    const { showException } = this.props;
+    showException(err);
+  }
+
+  render() {
+    const { hasError } = this.state;
+    const { children } = this.props;
+
+    return hasError ? null : <>{children}</>;
+  }
+}
+
+export class DocsRenderer<TRenderer extends Renderer> {
+  public render: DocsRenderFunction<TRenderer>;
 
   public unmount: (element: HTMLElement) => void;
 
   constructor() {
-    this.render = (
-      context: DocsContextProps<TFramework>,
+    this.render = async (
+      context: DocsContextProps<TRenderer>,
       docsParameter: Parameters,
-      element: HTMLElement,
-      callback: () => void
-    ): void => {
-      // Use a random key to force the container to re-render each time we call `renderDocs`
-      //   TODO: do we still need this? It was needed for angular (legacy) inline rendering:
-      //   https://github.com/storybookjs/storybook/pull/16149
-      ReactDOM.render(
-        <MDXProvider components={defaultComponents}>
-          <Docs key={Math.random()} context={context} docsParameter={docsParameter} />
-        </MDXProvider>,
-        element,
-        callback
-      );
+      element: HTMLElement
+    ): Promise<void> => {
+      const components = {
+        ...defaultComponents,
+        ...docsParameter?.components,
+      };
+
+      const TDocs = Docs as typeof Docs<TRenderer>;
+
+      return new Promise((resolve, reject) => {
+        import('@mdx-js/react')
+          .then(({ MDXProvider }) =>
+            // We use a `key={}` here to reset the `hasError` state each time we render ErrorBoundary
+            renderElement(
+              <ErrorBoundary showException={reject} key={Math.random()}>
+                <MDXProvider components={components}>
+                  <TDocs context={context} docsParameter={docsParameter} />
+                </MDXProvider>
+              </ErrorBoundary>,
+              element
+            )
+          )
+          .then(() => resolve());
+      });
     };
 
     this.unmount = (element: HTMLElement) => {
-      ReactDOM.unmountComponentAtNode(element);
+      unmountElement(element);
     };
   }
 }

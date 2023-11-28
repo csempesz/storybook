@@ -1,30 +1,19 @@
 ```ts
 // MyComponent.stories.ts
 
-import type { Meta, Story } from '@storybook/vue'; // For Vue 3 use import { Meta, Story } from '@storybook/vue3';
-
-import { withDesign } from 'storybook-addon-designs';
+// Replace vue3 with vue if you are using Storybook for Vue 2
+import type { Meta, StoryObj } from '@storybook/vue3';
 
 import MyComponent from './MyComponent.vue';
 
-// More on default export: https://storybook.js.org/docs/7.0/vue/writing-stories/introduction#default-export
-export default {
-  title: 'FigmaExample',
+// More on default export: https://storybook.js.org/docs/writing-stories/#default-export
+const meta: Meta<typeof MyComponent> = {
   component: MyComponent,
-  decorators: [withDesign],
-} as Meta<typeof MyComponent>;
+};
 
-// More on component templates: https://storybook.js.org/docs/7.0/vue/writing-stories/introduction#using-args
-const Template: StoryFn<typeof MyComponent> = () => ({
-  components: { MyComponent },
-  template: '<MyComponent />',
-});
+export default meta;
+type Story = StoryObj<typeof MyComponent>;
 
-/*
- *👇 Render functions are a framework specific feature to allow you control on how the component renders.
- * See https://storybook.js.org/docs/7.0/vue/api/csf
- * to learn how to use render functions.
- */
 export const Example: Story = {
   render: () => ({
     components: { MyComponent },

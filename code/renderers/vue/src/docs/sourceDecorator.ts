@@ -1,11 +1,11 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint no-underscore-dangle: ["error", { "allow": ["_vnode"] }] */
 
-import { addons } from '@storybook/addons';
+import { addons } from '@storybook/preview-api';
 import { logger } from '@storybook/client-logger';
-import type Vue from 'vue';
-
 import { SourceType, SNIPPET_RENDERED } from '@storybook/docs-tools';
+import { type ComponentOptions } from 'vue';
+import type Vue from 'vue';
 import type { StoryContext } from '../types';
 
 export const skipSourceRender = (context: StoryContext) => {
@@ -24,41 +24,50 @@ export const skipSourceRender = (context: StoryContext) => {
 
 export const sourceDecorator = (storyFn: any, context: StoryContext) => {
   const story = storyFn();
+  const source = '';
 
   // See ../react/jsxDecorator.tsx
-  if (skipSourceRender(context)) {
+  const skip = skipSourceRender(context);
+  if (skip) {
     return story;
   }
 
   const channel = addons.getChannel();
 
   const storyComponent = getStoryComponent(story.options.STORYBOOK_WRAPS);
+  const generateSource = (vueInstance: any) => {
+    try {
+      // console.log('updateSource():', vueInstance.$vnode);
+      const storyNode = lookupStoryInstance(vueInstance, storyComponent);
+      if (!storyNode) {
+        logger.warn(`Failed to find story component in the rendered tree: ${storyComponent}`);
+        return;
+      }
+      // eslint-disable-next-line no-param-reassign
+      vueInstance.source = vnodeToString(storyNode._vnode);
+    } catch (e) {
+      logger.warn(`Failed to generate dynamic story source: ${e}`);
+    }
+  };
 
   return {
     components: {
       Story: story,
     },
-    // We need to wait until the wrapper component to be mounted so Vue runtime
-    // struct VNode tree. We get `this._vnode == null` if switch to `created`
-    // lifecycle hook.
+    data() {
+      return { source };
+    },
+    updated() {
+      generateSource(this);
+    },
     mounted() {
-      // Theoretically this does not happens but we need to check it.
-      if (!this._vnode) {
-        return;
-      }
-
-      try {
-        const storyNode = lookupStoryInstance(this, storyComponent);
-
-        const code = vnodeToString(storyNode._vnode);
-
-        channel.emit(SNIPPET_RENDERED, (context || {}).id, `<template>${code}</template>`, 'vue');
-      } catch (e) {
-        logger.warn(`Failed to generate dynamic story source: ${e}`);
-      }
+      this.$watch('source', (val) =>
+        channel.emit(SNIPPET_RENDERED, context.id, `<template>${val}</template>`, 'vue')
+      );
+      generateSource(this);
     },
     template: '<story />',
-  };
+  } as ComponentOptions<Vue> & ThisType<Vue>;
 };
 
 export function vnodeToString(vnode: Vue.VNode): string {
@@ -69,7 +78,7 @@ export function vnodeToString(vnode: Vue.VNode): string {
     ...(vnode.data?.attrs ? Object.entries(vnode.data.attrs) : []),
   ]
     .filter(([name], index, list) => list.findIndex((item) => item[0] === name) === index)
-    .map(([name, value]) => stringifyAttr(name, value))
+    .map(([name, value]) => stringifyAttr(name!, value))
     .filter(Boolean)
     .join(' ');
 

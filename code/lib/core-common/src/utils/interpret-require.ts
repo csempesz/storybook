@@ -3,14 +3,20 @@ import { getInterpretedFileWithExt } from './interpret-files';
 let registered = false;
 
 export function interopRequireDefault(filePath: string) {
-  if (registered === false) {
+  // eslint-disable-next-line no-underscore-dangle, global-require
+  const hasEsbuildBeenRegistered = !!require('module')._extensions['.ts'];
+
+  if (registered === false && !hasEsbuildBeenRegistered) {
     // eslint-disable-next-line global-require
     const { register } = require('esbuild-register/dist/node');
     registered = true;
     register({
       target: `node${process.version.slice(1)}`,
       format: 'cjs',
-      hookIgnoreNodeModules: false,
+      hookIgnoreNodeModules: true,
+      // Some frameworks, like Stylus, rely on the 'name' property of classes or functions
+      // https://github.com/storybookjs/storybook/issues/19049
+      keepNames: true,
       tsconfigRaw: `{
       "compilerOptions": {
         "strict": false,

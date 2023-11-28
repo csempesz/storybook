@@ -6,12 +6,15 @@ import {
   getStorybookConfiguration,
   getProjectRoot,
 } from '@storybook/core-common';
-import type { StorybookConfig, PackageJson } from '@storybook/core-common';
+import type { StorybookConfig, PackageJson } from '@storybook/types';
+import { readConfig } from '@storybook/csf-tools';
 
 import type { StorybookMetadata, Dependency, StorybookAddon } from './types';
-import { getActualPackageVersion, getActualPackageVersions } from './package-versions';
+import { getActualPackageVersion, getActualPackageVersions } from './package-json';
 import { getMonorepoType } from './get-monorepo-type';
 import { cleanPaths } from './sanitize';
+import { getFrameworkInfo } from './get-framework-info';
+import { getChromaticVersionSpecifier } from './get-chromatic-version';
 
 export const metaFrameworks = {
   next: 'Next',
@@ -20,33 +23,8 @@ export const metaFrameworks = {
   '@nuxtjs/storybook': 'nuxt',
   '@nrwl/storybook': 'nx',
   '@vue/cli-service': 'vue-cli',
-  '@sveltejs/kit': 'svelte-kit',
+  '@sveltejs/kit': 'sveltekit',
 } as Record<string, string>;
-
-// @TODO: This should be removed in 7.0 as the framework.options field in main.js will replace this
-const getFrameworkOptions = (mainConfig: any) => {
-  const possibleOptions = [
-    'angular',
-    'ember',
-    'html',
-    'preact',
-    'react',
-    'server',
-    'svelte',
-    'vue',
-    'vue3',
-    'webComponents',
-  ].map((opt) => `${opt}Options`);
-
-  // eslint-disable-next-line no-restricted-syntax
-  for (const opt of possibleOptions) {
-    if (opt in mainConfig) {
-      return mainConfig[opt] as any;
-    }
-  }
-
-  return undefined;
-};
 
 export const sanitizeAddonName = (name: string) => {
   return cleanPaths(name)
@@ -68,7 +46,6 @@ export const computeStorybookMetadata = async ({
 }): Promise<StorybookMetadata> => {
   const metadata: Partial<StorybookMetadata> = {
     generatedAt: new Date().getTime(),
-    builder: { name: 'webpack5' },
     hasCustomBabel: false,
     hasCustomWebpack: false,
     hasStaticDirs: false,
@@ -114,24 +91,17 @@ export const computeStorybookMetadata = async ({
   metadata.hasCustomWebpack = !!mainConfig.webpackFinal;
   metadata.hasStaticDirs = !!mainConfig.staticDirs;
 
-  if (mainConfig.typescript) {
+  if (typeof mainConfig.typescript === 'object') {
     metadata.typescriptOptions = mainConfig.typescript;
   }
 
-  if (mainConfig.core?.builder) {
-    const { builder } = mainConfig.core;
+  const frameworkInfo = await getFrameworkInfo(mainConfig);
 
-    metadata.builder = {
-      name: typeof builder === 'string' ? builder : builder.name,
-      options: typeof builder === 'string' ? undefined : builder?.options ?? undefined,
-    };
-  }
-
-  if (mainConfig.refs) {
+  if (typeof mainConfig.refs === 'object') {
     metadata.refCount = Object.keys(mainConfig.refs).length;
   }
 
-  if (mainConfig.features) {
+  if (typeof mainConfig.features === 'object') {
     metadata.features = mainConfig.features;
   }
 
@@ -144,7 +114,9 @@ export const computeStorybookMetadata = async ({
       if (typeof addon === 'string') {
         addonName = sanitizeAddonName(addon);
       } else {
-        options = addon.options;
+        if (addon.name.includes('addon-essentials')) {
+          options = addon.options;
+        }
         addonName = sanitizeAddonName(addon.name);
       }
 
@@ -153,6 +125,15 @@ export const computeStorybookMetadata = async ({
         version: undefined,
       };
     });
+  }
+
+  const chromaticVersionSpecifier = getChromaticVersionSpecifier(packageJson);
+  if (chromaticVersionSpecifier) {
+    addons.chromatic = {
+      version: undefined,
+      versionSpecifier: chromaticVersionSpecifier,
+      options: undefined,
+    };
   }
 
   const addonVersions = await getActualPackageVersions(addons);
@@ -181,22 +162,30 @@ export const computeStorybookMetadata = async ({
 
   const hasStorybookEslint = !!allDependencies['eslint-plugin-storybook'];
 
-  // FIXME: resolve framework/renderer split in 7.0
-  //        OR should be getting this from mainConfig instead?
   const storybookInfo = getStorybookInfo(packageJson);
 
-  const storybookVersion =
-    storybookPackages[storybookInfo.frameworkPackage]?.version || storybookInfo.version;
+  try {
+    const { previewConfig } = storybookInfo;
+    if (previewConfig) {
+      const config = await readConfig(previewConfig);
+      const usesGlobals = !!(
+        config.getFieldNode(['globals']) || config.getFieldNode(['globalTypes'])
+      );
+      metadata.preview = { ...metadata.preview, usesGlobals };
+    }
+  } catch (e) {
+    // gracefully handle error, as it's not critical information and AST parsing can cause trouble
+  }
+
+  const storybookVersion = storybookPackages[storybookInfo.frameworkPackage]?.version;
 
   return {
     ...metadata,
+    ...frameworkInfo,
     storybookVersion,
+    storybookVersionSpecifier: storybookInfo.version,
     language,
     storybookPackages,
-    framework: {
-      name: storybookInfo.framework,
-      options: getFrameworkOptions(mainConfig),
-    },
     addons,
     hasStorybookEslint,
   };
@@ -209,6 +198,10 @@ export const getStorybookMetadata = async (_configDir?: string) => {
   }
 
   const { packageJson = {} } = readPkgUp.sync({ cwd: process.cwd(), normalize: false }) || {};
+  // TODO: improve the way configDir is extracted, as a "storybook" script might not be present
+  // Scenarios:
+  // 1. user changed it to something else e.g. "storybook:dev"
+  // 2. they are using angular/nx where the storybook config is defined somewhere else
   const configDir =
     (_configDir ||
       (getStorybookConfiguration(
@@ -217,7 +210,7 @@ export const getStorybookMetadata = async (_configDir?: string) => {
         '--config-dir'
       ) as string)) ??
     '.storybook';
-  const mainConfig = loadMainConfig({ configDir });
+  const mainConfig = await loadMainConfig({ configDir });
   cachedMetadata = await computeStorybookMetadata({ mainConfig, packageJson });
   return cachedMetadata;
 };

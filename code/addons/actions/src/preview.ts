@@ -1,2 +1,2 @@
-export * from './addDecorator';
 export * from './addArgs';
+export * from './loaders';

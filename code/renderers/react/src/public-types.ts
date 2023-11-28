@@ -1,16 +1,22 @@
 import type {
   AnnotatedStoryFn,
   Args,
+  ArgsFromMeta,
   ArgsStoryFn,
   ComponentAnnotations,
+  DecoratorFunction,
   LoaderFunction,
   StoryAnnotations,
-} from '@storybook/csf';
-import { SetOptional, Simplify, UnionToIntersection } from 'type-fest';
-import { ComponentProps, ComponentType, JSXElementConstructor } from 'react';
+  StoryContext as GenericStoryContext,
+  StrictArgs,
+  ProjectAnnotations,
+} from '@storybook/types';
+import type { ComponentProps, ComponentType, JSXElementConstructor } from 'react';
+import type { SetOptional, Simplify } from 'type-fest';
+import type { ReactRenderer } from './types';
 
-import { ReactFramework } from './types';
-import { DecoratorFn } from './public-api';
+export type { Args, ArgTypes, Parameters, StrictArgs } from '@storybook/types';
+export type { ReactRenderer };
 
 type JSXElement = keyof JSX.IntrinsicElements | JSXElementConstructor<any>;
 
@@ -19,53 +25,69 @@ type JSXElement = keyof JSX.IntrinsicElements | JSXElementConstructor<any>;
  *
  * @see [Default export](https://storybook.js.org/docs/formats/component-story-format/#default-export)
  */
-export type Meta<CmpOrArgs = Args> = CmpOrArgs extends ComponentType<infer CmpArgs>
-  ? ComponentAnnotations<ReactFramework, CmpArgs>
-  : ComponentAnnotations<ReactFramework, CmpOrArgs>;
+export type Meta<TCmpOrArgs = Args> = [TCmpOrArgs] extends [ComponentType<any>]
+  ? ComponentAnnotations<ReactRenderer, ComponentProps<TCmpOrArgs>>
+  : ComponentAnnotations<ReactRenderer, TCmpOrArgs>;
 
 /**
  * Story function that represents a CSFv2 component example.
  *
  * @see [Named Story exports](https://storybook.js.org/docs/formats/component-story-format/#named-story-exports)
  */
-export type StoryFn<TArgs = Args> = AnnotatedStoryFn<ReactFramework, TArgs>;
+export type StoryFn<TCmpOrArgs = Args> = [TCmpOrArgs] extends [ComponentType<any>]
+  ? AnnotatedStoryFn<ReactRenderer, ComponentProps<TCmpOrArgs>>
+  : AnnotatedStoryFn<ReactRenderer, TCmpOrArgs>;
 
 /**
  * Story function that represents a CSFv3 component example.
  *
  * @see [Named Story exports](https://storybook.js.org/docs/formats/component-story-format/#named-story-exports)
  */
-
-export type StoryObj<MetaOrArgs = Args> = MetaOrArgs extends {
-  render?: ArgsStoryFn<ReactFramework, infer RArgs>;
-  component?: ComponentType<infer CmpArgs>;
-  loaders?: (infer Loaders)[];
-  args?: infer DefaultArgs;
-  decorators?: (infer Decorators)[];
-}
-  ? Simplify<CmpArgs & RArgs & DecoratorsArgs<Decorators> & LoaderArgs<Loaders>> extends infer TArgs
+export type StoryObj<TMetaOrCmpOrArgs = Args> = [TMetaOrCmpOrArgs] extends [
+  {
+    render?: ArgsStoryFn<ReactRenderer, any>;
+    component?: infer Component;
+    args?: infer DefaultArgs;
+  }
+]
+  ? Simplify<
+      (Component extends ComponentType<any> ? ComponentProps<Component> : unknown) &
+        ArgsFromMeta<ReactRenderer, TMetaOrCmpOrArgs>
+    > extends infer TArgs
     ? StoryAnnotations<
-        ReactFramework,
-        TArgs,
-        SetOptional<TArgs, Extract<keyof TArgs, keyof (DefaultArgs & ActionArgs<TArgs>)>>
+        ReactRenderer,
+        AddMocks<TArgs, DefaultArgs>,
+        SetOptional<TArgs, keyof TArgs & keyof (DefaultArgs & ActionArgs<TArgs>)>
       >
     : never
-  : StoryAnnotations<ReactFramework, MetaOrArgs>;
+  : TMetaOrCmpOrArgs extends ComponentType<any>
+  ? StoryAnnotations<ReactRenderer, ComponentProps<TMetaOrCmpOrArgs>>
+  : StoryAnnotations<ReactRenderer, TMetaOrCmpOrArgs>;
 
-type DecoratorsArgs<Decorators> = UnionToIntersection<
-  Decorators extends DecoratorFn<infer Args> ? Args : unknown
->;
+// This performs a downcast to function types that are mocks, when a mock fn is given to meta args.
+type AddMocks<TArgs, DefaultArgs> = Simplify<{
+  [T in keyof TArgs]: T extends keyof DefaultArgs
+    ? // eslint-disable-next-line @typescript-eslint/ban-types
+      DefaultArgs[T] extends (...args: any) => any & { mock: {} } // allow any function with a mock object
+      ? DefaultArgs[T]
+      : TArgs[T]
+    : TArgs[T];
+}>;
 
-type LoaderArgs<Loaders> = UnionToIntersection<
-  Loaders extends LoaderFunction<ReactFramework, infer Args> ? Args : unknown
->;
-
-type ActionArgs<Args> = {
-  [P in keyof Args as ((...args: any[]) => void) extends Args[P] ? P : never]: Args[P];
+type ActionArgs<TArgs> = {
+  // This can be read as: filter TArgs on functions where we can assign a void function to that function.
+  // The docs addon argsEnhancers can only safely provide a default value for void functions.
+  // Other kind of required functions should be provided by the user.
+  [P in keyof TArgs as TArgs[P] extends (...args: any[]) => any
+    ? ((...args: any[]) => void) extends TArgs[P]
+      ? P
+      : never
+    : never]: TArgs[P];
 };
 
 /**
- * @deprecated Use `Meta` instead.
+ * @deprecated Use `Meta` instead, e.g. ComponentMeta<typeof Button> -> Meta<typeof Button>.
+ *
  * For the common case where a component's stories are simple components that receives args as props:
  *
  * ```tsx
@@ -75,6 +97,10 @@ type ActionArgs<Args> = {
 export type ComponentMeta<T extends JSXElement> = Meta<ComponentProps<T>>;
 
 /**
+ * @deprecated Use `StoryFn` instead, e.g. ComponentStoryFn<typeof Button> -> StoryFn<typeof Button>.
+ * Use `StoryObj` if you want to migrate to CSF3, which uses objects instead of functions to represent stories.
+ * You can read more about the CSF3 format here: https://storybook.js.org/blog/component-story-format-3-0/
+ *
  * For the common case where a (CSFv2) story is a simple component that receives args as props:
  *
  * ```tsx
@@ -84,7 +110,7 @@ export type ComponentMeta<T extends JSXElement> = Meta<ComponentProps<T>>;
 export type ComponentStoryFn<T extends JSXElement> = StoryFn<ComponentProps<T>>;
 
 /**
- * @deprecated Use `StoryObj` instead.
+ * @deprecated Use `StoryObj` instead, e.g. ComponentStoryObj<typeof Button> -> StoryObj<typeof Button>.
  *
  * For the common case where a (CSFv3) story is a simple component that receives args as props:
  *
@@ -97,18 +123,20 @@ export type ComponentStoryFn<T extends JSXElement> = StoryFn<ComponentProps<T>>;
 export type ComponentStoryObj<T extends JSXElement> = StoryObj<ComponentProps<T>>;
 
 /**
-
- /**
- * @deprecated Use `StoryObj` instead.
+ * @deprecated Use `StoryFn` instead.
+ * Use `StoryObj` if you want to migrate to CSF3, which uses objects instead of functions to represent stories.
+ * You can read more about the CSF3 format here: https://storybook.js.org/blog/component-story-format-3-0/
  *
- * Story function that represents a CSFv3 component example.
+ * Story function that represents a CSFv2 component example.
  *
  * @see [Named Story exports](https://storybook.js.org/docs/formats/component-story-format/#named-story-exports)
  */
 export type Story<TArgs = Args> = StoryFn<TArgs>;
 
 /**
- * @deprecated Use StoryObj instead.
+ * @deprecated Use `StoryFn` instead, e.g. ComponentStory<typeof Button> -> StoryFn<typeof Button>.
+ * Use `StoryObj` if you want to migrate to CSF3, which uses objects instead of functions to represent stories
+ * You can read more about the CSF3 format here: https://storybook.js.org/blog/component-story-format-3-0/.
  *
  * For the common case where a (CSFv3) story is a simple component that receives args as props:
  *
@@ -118,4 +146,13 @@ export type Story<TArgs = Args> = StoryFn<TArgs>;
  * }
  * ```
  */
-export type ComponentStory<T extends JSXElement> = ComponentStoryObj<T>;
+export type ComponentStory<T extends JSXElement> = ComponentStoryFn<T>;
+
+/**
+ * @deprecated Use Decorator instead.
+ */
+export type DecoratorFn = DecoratorFunction<ReactRenderer>;
+export type Decorator<TArgs = StrictArgs> = DecoratorFunction<ReactRenderer, TArgs>;
+export type Loader<TArgs = StrictArgs> = LoaderFunction<ReactRenderer, TArgs>;
+export type StoryContext<TArgs = StrictArgs> = GenericStoryContext<ReactRenderer, TArgs>;
+export type Preview = ProjectAnnotations<ReactRenderer>;

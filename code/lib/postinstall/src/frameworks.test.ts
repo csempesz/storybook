@@ -1,3 +1,4 @@
+import { it, describe, expect } from '@jest/globals';
 import { getFrameworks } from './frameworks';
 
 const REACT = {
@@ -9,7 +10,7 @@ const VUE = {
 };
 
 const NONE = {
-  '@storybook/addons': '5.2.5',
+  '@storybook/preview-api': '5.2.5',
   lodash: '^4.17.15',
 };
 

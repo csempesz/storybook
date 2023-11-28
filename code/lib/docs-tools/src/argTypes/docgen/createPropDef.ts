@@ -1,9 +1,13 @@
-import { PropDefaultValue } from './PropDef';
-import { PropDef, TypeSystem, DocgenInfo, DocgenType, DocgenPropDefaultValue } from './types';
-import { JsDocParsingResult } from '../jsdocParser';
+import type { PropDefaultValue } from './PropDef';
+import type { PropDef, DocgenInfo, DocgenType, DocgenPropDefaultValue } from './types';
+import { TypeSystem } from './types';
+import type { JsDocParsingResult } from '../jsdocParser';
+
 import { createSummaryValue } from '../utils';
+
 import { createFlowPropDef } from './flow/createPropDef';
 import { isDefaultValueBlacklisted } from './utils/defaultValue';
+
 import { createTsPropDef } from './typeScript/createPropDef';
 import { convert } from '../convert';
 
@@ -86,20 +90,17 @@ function applyJsDocResult(propDef: PropDef, jsDocParsingResult: JsDocParsingResu
       propDef.description = jsDocParsingResult.description;
     }
 
-    const hasParams = extractedTags.params != null;
-    const hasReturns = extractedTags.returns != null && extractedTags.returns.type != null;
+    const value = {
+      ...extractedTags,
+      params: extractedTags?.params?.map((x) => ({
+        name: x.getPrettyName(),
+        description: x.description,
+      })),
+    };
 
-    if (hasParams || hasReturns) {
+    if (Object.values(value).filter(Boolean).length > 0) {
       // eslint-disable-next-line no-param-reassign
-      propDef.jsDocTags = {
-        params:
-          hasParams &&
-          extractedTags.params.map((x) => ({
-            name: x.getPrettyName(),
-            description: x.description,
-          })),
-        returns: hasReturns && { description: extractedTags.returns.description },
-      };
+      propDef.jsDocTags = value;
     }
   }
 

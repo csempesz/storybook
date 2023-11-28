@@ -13,7 +13,7 @@ Storybook integrates with design tools to speed up your development workflow. Th
 
 ### Embed Storybook in Figma with the plugin
 
-[Storybook Connect](https://www.figma.com/community/plugin/1056265616080331589/Storybook-Connect) is a Figma plugin that allows you to embed component stories in Figma. It’s powered by [Storybook embeds](./embed.md) and [Chromatic](https://www.chromatic.com/), a publishing tool created by the Storybook team.
+[Storybook Connect](https://www.figma.com/community/plugin/1056265616080331589/Storybook-Connect) is a Figma plugin that allows you to embed component stories in Figma. It’s powered by [Storybook embeds](./embed.md) and [Chromatic](https://www.chromatic.com/?utm_source=storybook_website&utm_medium=link&utm_campaign=storybook), a publishing tool created by the Storybook team.
 
 <video autoPlay muted playsInline loop>
   <source src="figma-plugin-open-story.mp4" type="video/mp4" />
@@ -43,9 +43,11 @@ In Figma, select the component, open the plugin, and paste the URL.
 
 Chromatic will automatically update your linked stories to reflect the most recent Storybook published on the branch you linked. That means the link persists even as you push new code.
 
-<div class="aside">
-💡 The plugin does not support linking stories to Figma layers.
-</div>
+<Callout variant="info" icon="💡">
+
+The plugin does not support linking stories to Figma layers.
+
+</Callout>
 
 #### View stories in Figma
 
@@ -55,7 +57,7 @@ Once they're connected, you'll be able to view the story by clicking the link in
 
 ### Embed Figma in Storybook with the addon
 
-[Design addon](https://storybook.js.org/addons/storybook-addon-designs) allows you to embed Figma files and prototypes in Storybook.
+[Designs addon](https://storybook.js.org/addons/@storybook/addon-designs) allows you to embed Figma files and prototypes in Storybook.
 
 ![Storybook addon figma](./storybook-figma-addon.png)
 
@@ -69,6 +71,7 @@ Run the following command to install the addon.
   paths={[
     'common/storybook-figma-addon-install.yarn.js.mdx',
     'common/storybook-figma-addon-install.npm.js.mdx',
+    'common/storybook-figma-addon-install.pnpm.js.mdx',
   ]}
 />
 
@@ -81,6 +84,7 @@ Update your Storybook configuration (in `.storybook/main.js|ts`) to include the 
 <CodeSnippets
   paths={[
     'common/storybook-main-figma-addon-register.js.mdx',
+    'common/storybook-main-figma-addon-register.ts.mdx',
   ]}
 />
 
@@ -102,15 +106,17 @@ In Storybook, add a new [parameter](../writing-stories/parameters.md) named `des
   paths={[
     'react/component-story-figma-integration.js.mdx',
     'react/component-story-figma-integration.ts.mdx',
-    'react/component-story-figma-integration.mdx.mdx',
     'vue/component-story-figma-integration.js.mdx',
     'vue/component-story-figma-integration.ts.mdx',
-    'vue/component-story-figma-integration.mdx.mdx',
     'angular/component-story-figma-integration.ts.mdx',
-    'angular/component-story-figma-integration.mdx.mdx',
     'svelte/component-story-figma-integration.js.mdx',
-    'svelte/component-story-figma-integration.mdx.mdx',
+    'web-components/component-story-figma-integration.js.mdx',
+    'web-components/component-story-figma-integration.ts.mdx',
+    'solid/component-story-figma-integration.js.mdx',
+    'solid/component-story-figma-integration.ts.mdx',
   ]}
+  usesCsf3
+  csf2Path="sharing/design-integrations#snippet-component-story-figma-integration"
 />
 
 <!-- prettier-ignore-end -->
@@ -170,5 +176,5 @@ Integrate Adobe XD with Storybook using the [design addon](https://storybook.js.
 
 Extend and customize Storybook by building an integration. Integrate with lower-level Storybook APIs or bootstrap an addon to customize Storybook's UI and behavior.
 
-- [Addon documentation](../addons/introduction.md)
+- [Addon documentation](../addons/index.md)
 - [Create an addon tutorial](https://storybook.js.org/tutorials/create-an-addon/)

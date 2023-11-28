@@ -1,7 +1,5 @@
-```js
+```tsx
 // YourPage.ts|tsx
-
-import React from 'react';
 
 import PageLayout from './PageLayout';
 import Document from './Document';
@@ -9,13 +7,13 @@ import SubDocuments from './SubDocuments';
 import DocumentHeader from './DocumentHeader';
 import DocumentList from './DocumentList';
 
-export interface DocumentScreen {
+export interface DocumentScreenProps {
   user?: {};
   document?: Document;
   subdocuments?: SubDocuments[];
 }
 
-function DocumentScreen({ user, document, subdocuments }) {
+export function DocumentScreen({ user, document, subdocuments }: DocumentScreenProps) {
   return (
     <PageLayout user={user}>
       <DocumentHeader document={document} />

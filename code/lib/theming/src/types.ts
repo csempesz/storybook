@@ -1,42 +1,50 @@
-import { easing, animation } from './animation';
+import type { easing, animation } from './animation';
 
-import { color, background, typography } from './base';
+import type { color, background, typography } from './base';
 
-export interface ThemeVars {
+export interface ThemeVars extends ThemeVarsBase, ThemeVarsColors {}
+
+export interface ThemeVarsPartial extends ThemeVarsBase, Partial<ThemeVarsColors> {}
+
+interface ThemeVarsBase {
   base: 'light' | 'dark';
+}
 
-  colorPrimary?: string;
-  colorSecondary?: string;
+export interface ThemeVarsColors {
+  colorPrimary: string;
+  colorSecondary: string;
 
   // UI
-  appBg?: string;
-  appContentBg?: string;
-  appBorderColor?: string;
-  appBorderRadius?: number;
+  appBg: string;
+  appContentBg: string;
+  appPreviewBg: string;
+  appBorderColor: string;
+  appBorderRadius: number;
 
   // Typography
-  fontBase?: string;
-  fontCode?: string;
+  fontBase: string;
+  fontCode: string;
 
   // Text colors
-  textColor?: string;
-  textInverseColor?: string;
-  textMutedColor?: string;
+  textColor: string;
+  textInverseColor: string;
+  textMutedColor: string;
 
   // Toolbar default and active colors
-  barTextColor?: string;
-  barSelectedColor?: string;
-  barBg?: string;
+  barTextColor: string;
+  barHoverColor: string;
+  barSelectedColor: string;
+  barBg: string;
 
   // Form colors
-  buttonBg?: string;
-  buttonBorder?: string;
-  booleanBg?: string;
-  booleanSelectedBg?: string;
-  inputBg?: string;
-  inputBorder?: string;
-  inputTextColor?: string;
-  inputBorderRadius?: number;
+  buttonBg: string;
+  buttonBorder: string;
+  booleanBg: string;
+  booleanSelectedBg: string;
+  inputBg: string;
+  inputBorder: string;
+  inputTextColor: string;
+  inputBorderRadius: number;
 
   brandTitle?: string;
   brandUrl?: string;
@@ -81,6 +89,7 @@ export interface StorybookTheme {
 
   // Toolbar default/active colors
   barTextColor: string;
+  barHoverColor: string;
   barSelectedColor: string;
   barBg: string;
 

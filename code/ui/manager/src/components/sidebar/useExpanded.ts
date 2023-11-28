@@ -1,13 +1,15 @@
-import type { StoriesHash } from '@storybook/api';
-import { useStorybookApi } from '@storybook/api';
+import type { StoriesHash } from '@storybook/manager-api';
+import { useStorybookApi } from '@storybook/manager-api';
 import { STORIES_COLLAPSE_ALL, STORIES_EXPAND_ALL } from '@storybook/core-events';
-import global from 'global';
-import throttle from 'lodash/throttle';
-import React, { Dispatch, MutableRefObject, useCallback, useEffect, useReducer } from 'react';
+import { global } from '@storybook/global';
+import throttle from 'lodash/throttle.js';
+import type { Dispatch, MutableRefObject, Reducer } from 'react';
+import { useCallback, useEffect, useReducer } from 'react';
 import { matchesKeyCode, matchesModifiers } from '../../keybinding';
-import { Highlight } from './types';
+import type { Highlight } from './types';
 
-import { isAncestor, getAncestorIds, getDescendantIds, scrollIntoView } from './utils';
+// eslint-disable-next-line import/no-cycle
+import { isAncestor, getAncestorIds, getDescendantIds, scrollIntoView } from '../../utils/tree';
 
 const { document } = global;
 
@@ -73,7 +75,7 @@ export const useExpanded = ({
   // Track the set of currently expanded nodes within this tree.
   // Root nodes are expanded by default.
   const [expanded, setExpanded] = useReducer<
-    React.Reducer<ExpandedState, ExpandAction>,
+    Reducer<ExpandedState, ExpandAction>,
     {
       refId: string;
       data: StoriesHash;
@@ -102,7 +104,7 @@ export const useExpanded = ({
   );
 
   const updateExpanded = useCallback(
-    ({ ids, value }) => {
+    ({ ids, value }: ExpandAction) => {
       setExpanded({ ids, value });
       if (ids.length === 1) {
         const element = containerRef.current?.querySelector(

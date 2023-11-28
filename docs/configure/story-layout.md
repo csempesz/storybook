@@ -6,13 +6,14 @@ The `layout` [parameter](../writing-stories/parameters.md) allows you to configu
 
 ## Global layout
 
-You can add the parameter to your [`./storybook/preview.js`](./overview.md#configure-story-rendering), like so:
+You can add the parameter to your [`./storybook/preview.js`](./index.md#configure-story-rendering), like so:
 
 <!-- prettier-ignore-start -->
 
 <CodeSnippets
   paths={[
-    'common/storybook-preview-layout-param.js.mdx'
+    'common/storybook-preview-layout-param.js.mdx',
+    'common/storybook-preview-layout-param.ts.mdx',
   ]}
 />
 
@@ -34,8 +35,11 @@ You can also set it at a component level like so:
 
 <CodeSnippets
   paths={[
+    'angular/storybook-component-layout-param.ts.mdx',
+    'web-components/storybook-component-layout-param.js.mdx',
+    'web-components/storybook-component-layout-param.ts.mdx',
     'common/storybook-component-layout-param.js.mdx',
-    'common/storybook-component-layout-param.mdx.mdx',
+    'common/storybook-component-layout-param.ts.mdx',
   ]}
 />
 
@@ -49,9 +53,14 @@ Or even apply it to specific stories like so:
 
 <CodeSnippets
   paths={[
+    'angular/storybook-story-layout-param.ts.mdx',
+    'web-components/storybook-story-layout-param.js.mdx',
+    'web-components/storybook-story-layout-param.ts.mdx',
     'common/storybook-story-layout-param.js.mdx',
-    'common/storybook-story-layout-param.mdx.mdx',
+    'common/storybook-story-layout-param.ts.mdx',
   ]}
+  usesCsf3
+  csf2Path="configure/story-layout#snippet-storybook-story-layout-param"
 />
 
 <!-- prettier-ignore-end -->

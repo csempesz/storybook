@@ -1,13 +1,19 @@
-import React, { Component, SyntheticEvent, useCallback, MouseEventHandler } from 'react';
+import type { SyntheticEvent, MouseEventHandler, PropsWithChildren } from 'react';
+import React, { Component, createContext, memo, useCallback } from 'react';
 
-import { Icons, IconButton, Separator } from '@storybook/components';
-import type { Addon } from '@storybook/addons';
+import { IconButton, Separator } from '@storybook/components';
+import type { Addon_BaseType } from '@storybook/types';
+import { types } from '@storybook/manager-api';
+import { ZoomIcon, ZoomOutIcon, ZoomResetIcon } from '@storybook/icons';
 
 const initialZoom = 1 as const;
 
-const Context = React.createContext({ value: initialZoom, set: (v: number) => {} });
+const Context = createContext({ value: initialZoom, set: (v: number) => {} });
 
-class ZoomProvider extends Component<{ shouldScale: boolean }, { value: number }> {
+class ZoomProvider extends Component<
+  PropsWithChildren<{ shouldScale: boolean }>,
+  { value: number }
+> {
   state = {
     value: initialZoom,
   };
@@ -28,61 +34,69 @@ class ZoomProvider extends Component<{ shouldScale: boolean }, { value: number }
 
 const { Consumer: ZoomConsumer } = Context;
 
-const Zoom = React.memo<{
+const Zoom = memo<{
   zoomIn: MouseEventHandler;
   zoomOut: MouseEventHandler;
   reset: MouseEventHandler;
-}>(({ zoomIn, zoomOut, reset }) => (
-  <>
-    <IconButton key="zoomin" onClick={zoomIn} title="Zoom in">
-      <Icons icon="zoom" />
-    </IconButton>
-    <IconButton key="zoomout" onClick={zoomOut} title="Zoom out">
-      <Icons icon="zoomout" />
-    </IconButton>
-    <IconButton key="zoomreset" onClick={reset} title="Reset zoom">
-      <Icons icon="zoomreset" />
-    </IconButton>
-  </>
-));
+}>(function Zoom({ zoomIn, zoomOut, reset }) {
+  return (
+    <>
+      <IconButton key="zoomin" onClick={zoomIn} title="Zoom in">
+        <ZoomIcon />
+      </IconButton>
+      <IconButton key="zoomout" onClick={zoomOut} title="Zoom out">
+        <ZoomOutIcon />
+      </IconButton>
+      <IconButton key="zoomreset" onClick={reset} title="Reset zoom">
+        <ZoomResetIcon />
+      </IconButton>
+    </>
+  );
+});
 
 export { Zoom, ZoomConsumer, ZoomProvider };
 
-const ZoomWrapper = React.memo<{ set: (zoomLevel: number) => void; value: number }>(
-  ({ set, value }) => {
-    const zoomIn = useCallback(
-      (e: SyntheticEvent) => {
-        e.preventDefault();
-        set(0.8 * value);
-      },
-      [set, value]
-    );
-    const zoomOut = useCallback(
-      (e: SyntheticEvent) => {
-        e.preventDefault();
-        set(1.25 * value);
-      },
-      [set, value]
-    );
-    const reset = useCallback(
-      (e) => {
-        e.preventDefault();
-        set(initialZoom);
-      },
-      [set, initialZoom]
-    );
-    return <Zoom key="zoom" {...{ zoomIn, zoomOut, reset }} />;
-  }
-);
+const ZoomWrapper = memo<{ set: (zoomLevel: number) => void; value: number }>(function ZoomWrapper({
+  set,
+  value,
+}) {
+  const zoomIn = useCallback(
+    (e: SyntheticEvent) => {
+      e.preventDefault();
+      set(0.8 * value);
+    },
+    [set, value]
+  );
+  const zoomOut = useCallback(
+    (e: SyntheticEvent) => {
+      e.preventDefault();
+      set(1.25 * value);
+    },
+    [set, value]
+  );
+  const reset = useCallback(
+    (e: SyntheticEvent) => {
+      e.preventDefault();
+      set(initialZoom);
+    },
+    [set, initialZoom]
+  );
+  return <Zoom key="zoom" {...{ zoomIn, zoomOut, reset }} />;
+});
 
-export const zoomTool: Addon = {
-  title: 'zoom',
-  id: 'zoom',
-  match: ({ viewMode }) => viewMode === 'story',
-  render: React.memo(() => (
+function ZoomToolRenderer() {
+  return (
     <>
       <ZoomConsumer>{({ set, value }) => <ZoomWrapper {...{ set, value }} />}</ZoomConsumer>
       <Separator />
     </>
-  )),
+  );
+}
+
+export const zoomTool: Addon_BaseType = {
+  title: 'zoom',
+  id: 'zoom',
+  type: types.TOOL,
+  match: ({ viewMode }) => viewMode === 'story',
+  render: ZoomToolRenderer,
 };

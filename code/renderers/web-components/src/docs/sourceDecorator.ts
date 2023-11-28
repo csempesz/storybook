@@ -1,16 +1,15 @@
 /* eslint-disable no-underscore-dangle */
-/* global window */
-import { render } from 'lit-html';
-import type { ArgsStoryFn, PartialStoryFn, StoryContext } from '@storybook/csf';
-import { addons, useEffect } from '@storybook/addons';
+import { render } from 'lit';
+import type { ArgsStoryFn, PartialStoryFn, StoryContext } from '@storybook/types';
+import { addons, useEffect } from '@storybook/preview-api';
 import { SNIPPET_RENDERED, SourceType } from '@storybook/docs-tools';
 
-import type { WebComponentsFramework } from '../types';
+import type { WebComponentsRenderer } from '../types';
 
 // Taken from https://github.com/lit/lit/blob/main/packages/lit-html/src/test/test-utils/strip-markers.ts
 const LIT_EXPRESSION_COMMENTS = /<!--\?lit\$[0-9]+\$-->|<!--\??-->/g;
 
-function skipSourceRender(context: StoryContext<WebComponentsFramework>) {
+function skipSourceRender(context: StoryContext<WebComponentsRenderer>) {
   const sourceParams = context?.parameters.docs?.source;
   const isArgsStory = context?.parameters.__isArgsStory;
 
@@ -24,34 +23,29 @@ function skipSourceRender(context: StoryContext<WebComponentsFramework>) {
   return !isArgsStory || sourceParams?.code || sourceParams?.type === SourceType.CODE;
 }
 
-function applyTransformSource(
-  source: string,
-  context: StoryContext<WebComponentsFramework>
-): string {
-  const { transformSource } = context.parameters.docs ?? {};
-  if (typeof transformSource !== 'function') return source;
-  return transformSource(source, context);
-}
-
 export function sourceDecorator(
-  storyFn: PartialStoryFn<WebComponentsFramework>,
-  context: StoryContext<WebComponentsFramework>
-): WebComponentsFramework['storyResult'] {
-  const story = context?.parameters.docs?.source?.excludeDecorators
-    ? (context.originalStoryFn as ArgsStoryFn<WebComponentsFramework>)(context.args, context)
-    : storyFn();
+  storyFn: PartialStoryFn<WebComponentsRenderer>,
+  context: StoryContext<WebComponentsRenderer>
+): WebComponentsRenderer['storyResult'] {
+  const story = storyFn();
+  const renderedForSource = context?.parameters.docs?.source?.excludeDecorators
+    ? (context.originalStoryFn as ArgsStoryFn<WebComponentsRenderer>)(context.args, context)
+    : story;
 
   let source: string;
+
   useEffect(() => {
-    if (source) addons.getChannel().emit(SNIPPET_RENDERED, context.id, source);
+    const { id, unmappedArgs } = context;
+    if (source) addons.getChannel().emit(SNIPPET_RENDERED, { id, source, args: unmappedArgs });
   });
   if (!skipSourceRender(context)) {
     const container = window.document.createElement('div');
-    render(story, container);
-    source = applyTransformSource(
-      container.innerHTML.replace(LIT_EXPRESSION_COMMENTS, ''),
-      context
-    );
+    if (renderedForSource instanceof DocumentFragment) {
+      render(renderedForSource.cloneNode(true), container);
+    } else {
+      render(renderedForSource, container);
+    }
+    source = container.innerHTML.replace(LIT_EXPRESSION_COMMENTS, '');
   }
 
   return story;

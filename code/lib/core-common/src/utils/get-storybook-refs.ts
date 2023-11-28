@@ -1,10 +1,11 @@
 import { readJSON } from 'fs-extra';
 import { dirname, join } from 'path';
 import findUp from 'find-up';
+import fetch from 'node-fetch';
 
 import resolveFrom from 'resolve-from';
 import { logger } from '@storybook/node-logger';
-import { Options, Ref } from '../types';
+import type { Options, Ref } from '@storybook/types';
 
 export const getAutoRefs = async (options: Options): Promise<Record<string, Ref>> => {
   const location = await findUp('package.json', { cwd: options.configDir });
@@ -88,6 +89,10 @@ const toTitle = (input: string) => {
 };
 
 export async function getRefs(options: Options) {
+  if (options.test) {
+    return {};
+  }
+
   const refs = await options.presets.apply<Record<string, Ref>>('refs', await getAutoRefs(options));
 
   Object.entries(refs).forEach(([key, value]: [string, Ref]) => {

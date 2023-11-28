@@ -1,4 +1,4 @@
-import { ToolbarItem } from '../types';
+import type { ToolbarItem } from '../types';
 
 interface GetSelectedItemProps {
   currentValue: string | null;
@@ -6,7 +6,9 @@ interface GetSelectedItemProps {
 }
 
 export const getSelectedItem = ({ currentValue, items }: GetSelectedItemProps) => {
-  const selectedItem = currentValue != null && items.find((item) => item.value === currentValue);
+  const selectedItem =
+    currentValue != null &&
+    items.find((item) => item.value === currentValue && item.type !== 'reset');
   return selectedItem;
 };
 

@@ -1,5 +1,5 @@
 import type { IconsProps } from '@storybook/components';
-import type { ArgType } from '@storybook/api';
+import type { InputType } from '@storybook/types';
 
 export type ToolbarShortcutType = 'next' | 'previous' | 'reset';
 
@@ -31,13 +31,11 @@ export interface NormalizedToolbarConfig {
   preventDynamicIcon?: boolean;
   items: ToolbarItem[];
   shortcuts?: ToolbarShortcuts;
-  /** @deprecated "name" no longer dual purposes as title - use "title" if a title is wanted */
-  showName?: boolean;
   /** Change title based on selected value */
   dynamicTitle?: boolean;
 }
 
-export type NormalizedToolbarArgType = ArgType & {
+export type NormalizedToolbarArgType = InputType & {
   toolbar: NormalizedToolbarConfig;
 };
 
@@ -45,7 +43,7 @@ export type ToolbarConfig = NormalizedToolbarConfig & {
   items: string[] | ToolbarItem[];
 };
 
-export type ToolbarArgType = ArgType & {
+export type ToolbarArgType = InputType & {
   toolbar: ToolbarConfig;
 };
 

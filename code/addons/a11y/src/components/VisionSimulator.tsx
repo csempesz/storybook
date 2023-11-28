@@ -1,7 +1,9 @@
-import React, { ReactNode, useState } from 'react';
+import type { ReactNode } from 'react';
+import React, { useState } from 'react';
 import { Global, styled } from '@storybook/theming';
-import { Icons, IconButton, WithTooltip, TooltipLinkList } from '@storybook/components';
+import { IconButton, WithTooltip, TooltipLinkList } from '@storybook/components';
 
+import { AccessibilityIcon } from '@storybook/icons';
 import { Filters } from './ColorFilters';
 
 const iframeId = 'storybook-preview-iframe';
@@ -132,7 +134,6 @@ export const VisionSimulator = () => {
       )}
       <WithTooltip
         placement="top"
-        trigger="click"
         tooltip={({ onHide }) => {
           const colorList = getColorList(filter, (i) => {
             setFilter(i);
@@ -140,11 +141,11 @@ export const VisionSimulator = () => {
           });
           return <TooltipLinkList links={colorList} />;
         }}
-        closeOnClick
+        closeOnOutsideClick
         onDoubleClick={() => setFilter(null)}
       >
         <IconButton key="filter" active={!!filter} title="Vision simulator">
-          <Icons icon="accessibility" />
+          <AccessibilityIcon />
         </IconButton>
       </WithTooltip>
       <Hidden>

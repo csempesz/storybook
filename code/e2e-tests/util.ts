@@ -1,5 +1,7 @@
-/* eslint-disable jest/no-standalone-expect */
-import { expect, Page } from '@playwright/test';
+/* eslint-disable jest/no-standalone-expect, no-await-in-loop */
+import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { toId } from '@storybook/csf';
 
 export class SbPage {
   readonly page: Page;
@@ -8,31 +10,70 @@ export class SbPage {
     this.page = page;
   }
 
-  async navigateToStory(title: string, name: string) {
-    const titleId = title.replace(/ /g, '-').toLowerCase();
-    const storyId = name.replace(/ /g, '-').toLowerCase();
+  async openComponent(title: string, hasRoot = true) {
+    const parts = title.split('/');
+    for (let i = hasRoot ? 1 : 0; i < parts.length; i += 1) {
+      const parentId = toId(parts.slice(0, i + 1).join('/'));
 
-    const titleLink = this.page.locator(`#${titleId}`);
-    if ((await titleLink.getAttribute('aria-expanded')) === 'false') {
-      await titleLink.click();
+      const parentLink = this.page.locator(`#${parentId}`);
+
+      await expect(parentLink).toBeVisible();
+      if ((await parentLink.getAttribute('aria-expanded')) === 'false') {
+        await parentLink.click();
+      }
     }
+  }
 
+  /**
+   * Visit a story via the URL instead of selecting from the sidebar.
+   */
+  async deepLinkToStory(baseURL: string, title: string, name: 'docs' | string) {
+    const titleId = toId(title);
+    const storyId = toId(name);
+    const storyLinkId = `${titleId}--${storyId}`;
+    const viewMode = name === 'docs' ? 'docs' : 'story';
+    await this.page.goto(`${baseURL}/?path=/${viewMode}/${storyLinkId}`);
+  }
+
+  /**
+   * Visit a story by selecting it from the sidebar.
+   */
+  async navigateToStory(title: string, name: string) {
+    await this.openComponent(title);
+
+    const titleId = toId(title);
+    const storyId = toId(name);
     const storyLinkId = `#${titleId}--${storyId}`;
     await this.page.waitForSelector(storyLinkId);
-    const storyLink = this.page.locator(storyLinkId);
+    const storyLink = this.page.locator('*', { has: this.page.locator(`> ${storyLinkId}`) });
     await storyLink.click({ force: true });
 
     // assert url changes
     const viewMode = name === 'docs' ? 'docs' : 'story';
 
-    const url = this.page.url();
-    await expect(url).toContain(`path=/${viewMode}/${titleId}--${storyId}`);
+    await this.page.waitForURL((url) =>
+      url.search.includes(`path=/${viewMode}/${titleId}--${storyId}`)
+    );
 
     const selected = await storyLink.getAttribute('data-selected');
     await expect(selected).toBe('true');
+
+    await this.previewRoot();
   }
 
   async waitUntilLoaded() {
+    // make sure we start every test with clean state – to avoid possible flakyness
+    await this.page.context().addInitScript(() => {
+      const storeState = {
+        layout: {
+          showToolbar: true,
+          navSize: 300,
+          bottomPanelHeight: 300,
+          rightPanelWidth: 300,
+        },
+      };
+      window.sessionStorage.setItem('@storybook/manager/store', JSON.stringify(storeState));
+    }, {});
     const root = this.previewRoot();
     const docsLoadingPage = root.locator('.sb-preparing-docs');
     const storyLoadingPage = root.locator('.sb-preparing-story');

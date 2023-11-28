@@ -3,10 +3,10 @@ import slash from 'slash';
 import fs from 'fs';
 import path from 'path';
 import glob from 'globby';
-import uniq from 'lodash/uniq';
+import uniq from 'lodash/uniq.js';
 
-import type { NormalizedStoriesSpecifier } from '@storybook/core-common';
-import type { Path } from '@storybook/store';
+import type { NormalizedStoriesSpecifier, Path } from '@storybook/types';
+import { commonGlobOptions } from '@storybook/core-common';
 
 const isDirectory = (directory: Path) => {
   try {
@@ -33,7 +33,7 @@ export function watchStorySpecifiers(
   const wp = new Watchpack({
     // poll: true, // Slow!!! Enable only in special cases
     followSymlinks: false,
-    ignored: ['**/.git', 'node_modules'],
+    ignored: ['**/.git', '**/node_modules'],
   });
   wp.watch({
     directories: uniq(specifiers.map((ns) => ns.directory)),
@@ -75,7 +75,7 @@ export function watchStorySpecifiers(
               path.basename(specifier.files)
             );
             // glob only supports forward slashes
-            const files = await glob(dirGlob.replace(/\\/g, '/'));
+            const files = await glob(slash(dirGlob), commonGlobOptions(dirGlob));
 
             files.forEach((filePath) => {
               const fileImportPath = toImportPath(

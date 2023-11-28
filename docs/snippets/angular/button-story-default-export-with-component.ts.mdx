@@ -5,12 +5,9 @@ import type { Meta } from '@storybook/angular';
 
 import { Button } from './button.component';
 
-export default {
-  /* 👇 The title prop is optional.
-   * See https://storybook.js.org/docs/7.0/angular/configure/overview#configure-story-loading
-   * to learn how to generate automatic titles
-   */
-  title: 'Button',
+const meta: Meta<Button> = {
   component: Button,
-} as Meta;
+};
+
+export default meta;
 ```

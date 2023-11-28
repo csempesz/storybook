@@ -1,17 +1,29 @@
 import { dedent } from 'ts-dedent';
 import { logger } from '@storybook/node-logger';
-import { dirname } from 'path';
-import {
+import type {
+  BuilderOptions,
   CLIOptions,
+  CoreCommon_ResolvedAddonPreset,
+  CoreCommon_ResolvedAddonVirtual,
   LoadedPreset,
   LoadOptions,
   PresetConfig,
   Presets,
-  BuilderOptions,
-} from './types';
+  StorybookConfigRaw,
+} from '@storybook/types';
+import { join, parse } from 'path';
+import { CriticalPresetLoadError } from '@storybook/core-events/server-errors';
 import { loadCustomPresets } from './utils/load-custom-presets';
 import { safeResolve, safeResolveFrom } from './utils/safeResolve';
 import { interopRequireDefault } from './utils/interpret-require';
+import { stripAbsNodeModulesPath } from './utils/strip-abs-node-modules-path';
+
+type InterPresetOptions = Omit<
+  CLIOptions &
+    LoadOptions &
+    BuilderOptions & { isCritical?: boolean; build?: StorybookConfigRaw['build'] },
+  'frameworkPresets'
+>;
 
 const isObject = (val: unknown): val is Record<string, any> =>
   val != null && typeof val === 'object' && Array.isArray(val) === false;
@@ -22,6 +34,15 @@ export function filterPresetsConfig(presetsConfig: PresetConfig[]): PresetConfig
     const presetName = typeof preset === 'string' ? preset : preset.name;
     return !/@storybook[\\\\/]preset-typescript/.test(presetName);
   });
+}
+
+function resolvePathToMjs(filePath: string): string {
+  const { dir, name } = parse(filePath);
+  const mjsPath = join(dir, `${name}.mjs`);
+  if (safeResolve(mjsPath)) {
+    return mjsPath;
+  }
+  return filePath;
 }
 
 function resolvePresetFunction<T = any>(
@@ -55,35 +76,29 @@ function resolvePresetFunction<T = any>(
  * - { name: '@storybook/addon-docs(/preset)?', options: { ... } }
  *   =>  { type: 'presets', item: { name: '@storybook/addon-docs/preset', options } }
  */
-interface ResolvedAddonPreset {
-  type: 'presets';
-  name: string;
-}
-interface ResolvedAddonVirtual {
-  type: 'virtual';
-  name: string;
-  managerEntries?: string[];
-  previewAnnotations?: string[];
-  presets?: (string | { name: string; options?: any })[];
-}
 
 export const resolveAddonName = (
   configDir: string,
   name: string,
   options: any
-): ResolvedAddonPreset | ResolvedAddonVirtual | undefined => {
+): CoreCommon_ResolvedAddonPreset | CoreCommon_ResolvedAddonVirtual | undefined => {
   const resolve = name.startsWith('/') ? safeResolve : safeResolveFrom.bind(null, configDir);
   const resolved = resolve(name);
 
   if (resolved) {
-    if (name.match(/\/(manager|register(-panel)?)(\.(js|ts|tsx|jsx))?$/)) {
+    const { dir: fdir, name: fname } = parse(resolved);
+
+    if (name.match(/\/(manager|register(-panel)?)(\.(js|mjs|ts|tsx|jsx))?$/)) {
       return {
         type: 'virtual',
         name,
-        managerEntries: [resolved],
+        // we remove the extension
+        // this is a bit of a hack to try to find .mjs files
+        // node can only ever resolve .js files; it does not look at the exports field in package.json
+        managerEntries: [resolvePathToMjs(join(fdir, fname))],
       };
     }
-    if (name.match(/\/(preset)(\.(js|ts|tsx|jsx))?$/)) {
+    if (name.match(/\/(preset)(\.(js|mjs|ts|tsx|jsx))?$/)) {
       return {
         type: 'presets',
         name: resolved,
@@ -91,35 +106,32 @@ export const resolveAddonName = (
     }
   }
 
-  const absolutePackageJson = resolved && resolve(`${name}/package.json`);
-
-  // We want to absolutize the package name part to a path on disk
-  //   (i.e. '/Users/foo/.../node_modules/@addons/foo') as otherwise
-  // we may not be able to import the package in certain module systems (eg. pnpm, yarn pnp)
-  const absoluteDir = absolutePackageJson && dirname(absolutePackageJson);
-
-  // If the package has an export (e.g. `/preview`), absolutize it, eg. to
-  //    /Users/foo/.../node_modules/@addons/foo/preview
-  // NOTE: this looks like the path of an absolute file, but it DOES NOT exist.
-  //  - However it is importable by webpack.
-  //  - Vite needs to strip off the absolute part to import it though
-  //     (vite cannot import absolute files: https://github.com/vitejs/vite/issues/5494
-  //      this also means vite suffers issues with pnpm etc)
-  const absolutizeExport = (exportName: string) => {
-    if (resolve(`${name}${exportName}`)) return `${absoluteDir}${exportName}`;
+  const checkExists = (exportName: string) => {
+    if (resolve(`${name}${exportName}`)) return `${name}${exportName}`;
     return undefined;
   };
 
-  const path = name;
+  // This is used to maintain back-compat with community addons that do not
+  // re-export their sub-addons but reference the sub-addon name directly.
+  //  We need to turn it into an absolute path so that webpack can
+  // serve it up correctly  when yarn pnp or pnpm is being used.
+  // Vite will be broken in such cases, because it does not process absolute paths,
+  // and it will try to import from the bare import, breaking in pnp/pnpm.
+  const absolutizeExport = (exportName: string, preferMJS: boolean) => {
+    const found = resolve(`${name}${exportName}`);
 
-  // We don't want to resolve an import path (e.g. '@addons/foo/preview') to the file on disk,
-  // because you are not allowed to import arbitrary files in packages in Vite.
-  // Instead we check if the export exists and "absolutize" it.
-  const managerFile = absolutizeExport(`/manager`);
-  const registerFile = absolutizeExport(`/register`) || absolutizeExport(`/register-panel`);
-  const previewFile = absolutizeExport(`/preview`);
-  // Presets are imported by node, so therefore fine to be a path on disk (at this stage anyway)
-  const presetFile = resolve(`${path}/preset`);
+    if (found) {
+      return preferMJS ? resolvePathToMjs(found) : found;
+    }
+    return undefined;
+  };
+
+  const managerFile = absolutizeExport(`/manager`, true);
+  const registerFile =
+    absolutizeExport(`/register`, true) || absolutizeExport(`/register-panel`, true);
+  const previewFile = checkExists(`/preview`);
+  const previewFileAbsolute = absolutizeExport('/preview', true);
+  const presetFile = absolutizeExport(`/preset`, false);
 
   if (!(managerFile || previewFile) && presetFile) {
     return {
@@ -141,9 +153,23 @@ export const resolveAddonName = (
 
     return {
       type: 'virtual',
-      name: path,
+      name,
       ...(managerEntries.length ? { managerEntries } : {}),
-      ...(previewFile ? { previewAnnotations: [previewFile] } : {}),
+      ...(previewFile
+        ? {
+            previewAnnotations: [
+              previewFileAbsolute
+                ? {
+                    // TODO: Evaluate if searching for node_modules in a yarn pnp environment is correct
+                    bare: previewFile.includes('node_modules')
+                      ? stripAbsNodeModulesPath(previewFile)
+                      : previewFile,
+                    absolute: previewFileAbsolute,
+                  }
+                : previewFile,
+            ],
+          }
+        : {}),
       ...(presetFile ? { presets: [{ name: presetFile, options }] } : {}),
     };
   }
@@ -161,20 +187,29 @@ export const resolveAddonName = (
 const map =
   ({ configDir }: InterPresetOptions) =>
   (item: any) => {
-    const options = isObject(item) ? item.options || undefined : undefined;
-    const name = isObject(item) ? item.name : item;
+    const options = isObject(item) ? item['options'] || undefined : undefined;
+    const name = isObject(item) ? item['name'] : item;
+
+    let resolved;
+
     try {
-      const resolved = resolveAddonName(configDir, name, options);
-      return {
-        ...(options ? { options } : {}),
-        ...resolved,
-      };
+      resolved = resolveAddonName(configDir, name, options);
     } catch (err) {
       logger.error(
         `Addon value should end in /manager or /preview or /register OR it should be a valid preset https://storybook.js.org/docs/react/addons/writing-presets/\n${item}`
       );
+      return undefined;
     }
-    return undefined;
+
+    if (!resolved) {
+      logger.warn(`Could not resolve addon "${name}", skipping. Is it installed?`);
+      return undefined;
+    }
+
+    return {
+      ...(options ? { options } : {}),
+      ...resolved,
+    };
   };
 
 async function getContent(input: any) {
@@ -192,9 +227,10 @@ export async function loadPreset(
   level: number,
   storybookOptions: InterPresetOptions
 ): Promise<LoadedPreset[]> {
+  // @ts-expect-error (Converted from ts-ignore)
+  const presetName: string = input.name ? input.name : input;
+
   try {
-    // @ts-expect-error (Converted from ts-ignore)
-    const name: string = input.name ? input.name : input;
     // @ts-expect-error (Converted from ts-ignore)
     const presetOptions = input.options ? input.options : {};
 
@@ -207,14 +243,36 @@ export async function loadPreset(
 
     if (Array.isArray(contents)) {
       const subPresets = contents;
-      return loadPresets(subPresets, level + 1, storybookOptions);
+      return await loadPresets(subPresets, level + 1, storybookOptions);
     }
 
     if (isObject(contents)) {
-      const { addons: addonsInput, presets: presetsInput, ...rest } = contents;
+      const { addons: addonsInput = [], presets: presetsInput = [], ...rest } = contents;
 
-      const subPresets = resolvePresetFunction(presetsInput, presetOptions, storybookOptions);
-      const subAddons = resolvePresetFunction(addonsInput, presetOptions, storybookOptions);
+      let filter = (i: PresetConfig) => {
+        return true;
+      };
+
+      if (
+        storybookOptions.isCritical !== true &&
+        (storybookOptions.build?.test?.disabledAddons?.length || 0) > 0
+      ) {
+        filter = (i: PresetConfig) => {
+          // @ts-expect-error (Converted from ts-ignore)
+          const name = i.name ? i.name : i;
+
+          return !storybookOptions.build?.test?.disabledAddons?.find((n) => name.includes(n));
+        };
+      }
+
+      const subPresets = resolvePresetFunction(
+        presetsInput,
+        presetOptions,
+        storybookOptions
+      ).filter(filter);
+      const subAddons = resolvePresetFunction(addonsInput, presetOptions, storybookOptions).filter(
+        filter
+      );
 
       return [
         ...(await loadPresets([...subPresets], level + 1, storybookOptions)),
@@ -224,7 +282,7 @@ export async function loadPreset(
           storybookOptions
         )),
         {
-          name,
+          name: presetName,
           preset: rest,
           options: presetOptions,
         },
@@ -234,15 +292,21 @@ export async function loadPreset(
     throw new Error(dedent`
       ${input} is not a valid preset
     `);
-  } catch (e: any) {
+  } catch (error: any) {
+    if (storybookOptions?.isCritical) {
+      throw new CriticalPresetLoadError({
+        error,
+        presetName,
+      });
+    }
+
     const warning =
       level > 0
         ? `  Failed to load preset: ${JSON.stringify(input)} on level ${level}`
         : `  Failed to load preset: ${JSON.stringify(input)}`;
 
     logger.warn(warning);
-    logger.error(e);
-
+    logger.error(error);
     return [];
   }
 }
@@ -256,12 +320,12 @@ async function loadPresets(
     return [];
   }
 
-  if (!level) {
-    logger.info('=> Loading presets');
-  }
-
   return (
-    await Promise.all(presets.map(async (preset) => loadPreset(preset, level, storybookOptions)))
+    await Promise.all(
+      presets.map(async (preset) => {
+        return loadPreset(preset, level, storybookOptions);
+      })
+    )
   ).reduce((acc, loaded) => {
     return acc.concat(loaded);
   }, []);
@@ -320,8 +384,6 @@ function applyPresets(
   }, presetResult);
 }
 
-type InterPresetOptions = Omit<CLIOptions & LoadOptions & BuilderOptions, 'frameworkPresets'>;
-
 export async function getPresets(
   presets: PresetConfig[],
   storybookOptions: InterPresetOptions
@@ -338,8 +400,11 @@ export async function loadAllPresets(
   options: CLIOptions &
     LoadOptions &
     BuilderOptions & {
-      corePresets: string[];
-      overridePresets: string[];
+      corePresets: PresetConfig[];
+      overridePresets: PresetConfig[];
+      /** Whether preset failures should be critical or not */
+      isCritical?: boolean;
+      build?: StorybookConfigRaw['build'];
     }
 ) {
   const { corePresets = [], overridePresets = [], ...restOptions } = options;

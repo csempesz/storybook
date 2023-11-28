@@ -1,14 +1,17 @@
 import * as t from '@babel/types';
-import traverse from '@babel/traverse';
-import generate from '@babel/generator';
+
+import * as traverse from '@babel/traverse';
+
+import * as generate from '@babel/generator';
 import { dedent } from 'ts-dedent';
 import { babelParse } from './babelParse';
+import { findVarInitialization } from './findVarInitialization';
 
 const logger = console;
 
 const getValue = (obj: t.ObjectExpression, key: string) => {
-  let value: t.Expression;
-  obj.properties.forEach((p: t.ObjectProperty) => {
+  let value: t.Expression | undefined;
+  (obj.properties as t.ObjectProperty[]).forEach((p) => {
     if (t.isIdentifier(p.key) && p.key.name === key) {
       value = p.value as t.Expression;
     }
@@ -18,12 +21,12 @@ const getValue = (obj: t.ObjectExpression, key: string) => {
 
 const parseValue = (expr: t.Expression): any => {
   if (t.isArrayExpression(expr)) {
-    return expr.elements.map((o: t.Expression) => {
+    return (expr.elements as t.Expression[]).map((o) => {
       return parseValue(o);
     });
   }
   if (t.isObjectExpression(expr)) {
-    return expr.properties.reduce((acc, p: t.ObjectProperty) => {
+    return (expr.properties as t.ObjectProperty[]).reduce((acc, p) => {
       if (t.isIdentifier(p.key)) {
         acc[p.key.name] = parseValue(p.value as t.Expression);
       }
@@ -34,18 +37,23 @@ const parseValue = (expr: t.Expression): any => {
     // @ts-expect-error (Converted from ts-ignore)
     return expr.value;
   }
-  throw new Error(`Unknown node type ${expr}`);
+  if (t.isIdentifier(expr)) {
+    return unsupported(expr.name, true);
+  }
+  throw new Error(`Unknown node type ${expr.type}`);
 };
 
 const unsupported = (unexpectedVar: string, isError: boolean) => {
   const message = dedent`
     Unexpected '${unexpectedVar}'. Parameter 'options.storySort' should be defined inline e.g.:
 
-    export const parameters = {
-      options: {
-        storySort: <array | object | function>
-      }
-    }
+    export default {
+      parameters: {
+        options: {
+          storySort: <array | object | function>
+        },
+      },
+    };
   `;
   if (isError) {
     throw new Error(message);
@@ -54,32 +62,52 @@ const unsupported = (unexpectedVar: string, isError: boolean) => {
   }
 };
 
+const stripTSModifiers = (expr: t.Expression): t.Expression =>
+  t.isTSAsExpression(expr) || t.isTSSatisfiesExpression(expr) ? expr.expression : expr;
+
+const parseParameters = (params: t.Expression): t.Expression | undefined => {
+  const paramsObject = stripTSModifiers(params);
+  if (t.isObjectExpression(paramsObject)) {
+    const options = getValue(paramsObject, 'options');
+    if (options) {
+      if (t.isObjectExpression(options)) {
+        return getValue(options, 'storySort');
+      }
+      unsupported('options', true);
+    }
+  }
+  return undefined;
+};
+
+const parseDefault = (defaultExpr: t.Expression, program: t.Program): t.Expression | undefined => {
+  const defaultObj = stripTSModifiers(defaultExpr);
+  if (t.isObjectExpression(defaultObj)) {
+    let params = getValue(defaultObj, 'parameters');
+    if (t.isIdentifier(params)) {
+      params = findVarInitialization(params.name, program);
+    }
+    if (params) {
+      return parseParameters(params);
+    }
+  } else {
+    unsupported('default', true);
+  }
+  return undefined;
+};
+
 export const getStorySortParameter = (previewCode: string) => {
-  let storySort: t.Expression;
+  let storySort: t.Expression | undefined;
   const ast = babelParse(previewCode);
-  traverse(ast, {
+  traverse.default(ast, {
     ExportNamedDeclaration: {
       enter({ node }) {
         if (t.isVariableDeclaration(node.declaration)) {
           node.declaration.declarations.forEach((decl) => {
             if (t.isVariableDeclarator(decl) && t.isIdentifier(decl.id)) {
               const { name: exportName } = decl.id;
-              if (exportName === 'parameters') {
-                const paramsObject = t.isTSAsExpression(decl.init)
-                  ? decl.init.expression
-                  : decl.init;
-                if (t.isObjectExpression(paramsObject)) {
-                  const options = getValue(paramsObject, 'options');
-                  if (options) {
-                    if (t.isObjectExpression(options)) {
-                      storySort = getValue(options, 'storySort');
-                    } else {
-                      unsupported('options', true);
-                    }
-                  }
-                } else {
-                  unsupported('parameters', true);
-                }
+              if (exportName === 'parameters' && decl.init) {
+                const paramsObject = stripTSModifiers(decl.init);
+                storySort = parseParameters(paramsObject);
               }
             }
           });
@@ -92,19 +120,33 @@ export const getStorySortParameter = (previewCode: string) => {
         }
       },
     },
+    ExportDefaultDeclaration: {
+      enter({ node }) {
+        let defaultObj = node.declaration as t.Expression;
+        if (t.isIdentifier(defaultObj)) {
+          defaultObj = findVarInitialization(defaultObj.name, ast.program);
+        }
+        defaultObj = stripTSModifiers(defaultObj);
+        if (t.isObjectExpression(defaultObj)) {
+          storySort = parseDefault(defaultObj, ast.program);
+        } else {
+          unsupported('default', false);
+        }
+      },
+    },
   });
 
   if (!storySort) return undefined;
 
   if (t.isArrowFunctionExpression(storySort)) {
-    const { code: sortCode } = generate(storySort, {});
+    const { code: sortCode } = generate.default(storySort, {});
     // eslint-disable-next-line no-eval
     return (0, eval)(sortCode);
   }
 
   if (t.isFunctionExpression(storySort)) {
-    const { code: sortCode } = generate(storySort, {});
-    const functionName = storySort.id.name;
+    const { code: sortCode } = generate.default(storySort, {});
+    const functionName = storySort.id?.name;
     // Wrap the function within an arrow function, call it, and return
     const wrapper = `(a, b) => {
       ${sortCode};

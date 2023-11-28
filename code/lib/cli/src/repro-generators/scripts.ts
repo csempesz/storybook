@@ -1,9 +1,9 @@
-/* eslint-disable camelcase */
 import path from 'path';
-import { readJSON, writeJSON, outputFile } from 'fs-extra';
-import shell, { ExecOptions } from 'shelljs';
+import { readJSON, writeJSON, outputFile, remove } from 'fs-extra';
 import chalk from 'chalk';
 import { command } from 'execa';
+import type spawn from 'cross-spawn';
+import { spawn as spawnAsync } from 'cross-spawn';
 import { cra, cra_typescript } from './configs';
 import storybookVersions from '../versions';
 
@@ -31,6 +31,8 @@ export interface Parameters {
   }[];
   /** Add typescript dependency and creates a tsconfig.json file */
   typescript?: boolean;
+  /** Environment variables to inject while running generator */
+  envs?: Record<string, string>;
 }
 
 interface Configuration {
@@ -39,6 +41,8 @@ interface Configuration {
   local: boolean;
   registry?: string;
 }
+
+type ExecOptions = globalThis.Parameters<typeof spawn>[2];
 
 export interface Options extends Parameters {
   appName: string;
@@ -49,6 +53,7 @@ export interface Options extends Parameters {
 }
 
 export const exec = async (
+  // eslint-disable-next-line @typescript-eslint/no-shadow
   command: string,
   options: ExecOptions = {},
   {
@@ -66,24 +71,21 @@ export const exec = async (
 
   logger.debug(command);
   return new Promise((resolve, reject) => {
-    const defaultOptions: ExecOptions = {
-      silent: false,
-    };
-    const child = shell.exec(command, {
-      ...defaultOptions,
+    const child = spawnAsync(command, {
       ...options,
-      async: true,
-      silent: false,
+      shell: true,
+      stdio: 'pipe',
     });
 
-    child.stderr.pipe(process.stderr);
+    child.stderr.pipe(process.stdout);
+    child.stdout.pipe(process.stdout);
 
     child.on('exit', (code) => {
       if (code === 0) {
         resolve(undefined);
       } else {
         logger.error(chalk.red(`An error occurred while executing: \`${command}\``));
-        logger.log(errorMessage);
+        logger.info(errorMessage);
         reject(new Error(`command exited with code: ${code}: `));
       }
     });
@@ -103,11 +105,12 @@ const addLocalPackageResolutions = async ({ cwd }: Options) => {
   const packageJsonPath = path.join(cwd, 'package.json');
   const packageJson = await readJSON(packageJsonPath);
   const workspaceDir = path.join(__dirname, '..', '..', '..', '..', '..');
-  const { stdout } = await command('yarn workspaces list --json', { cwd: workspaceDir });
+  const { stdout } = await command('yarn workspaces list --json', {
+    cwd: workspaceDir,
+    cleanup: true,
+  });
 
-  console.log({ stdout, workspaceDir });
   const workspaces = JSON.parse(`[${stdout.split('\n').join(',')}]`);
-  console.log({ workspaces });
 
   packageJson.resolutions = Object.keys(storybookVersions).reduce((acc, key) => {
     return {
@@ -119,9 +122,11 @@ const addLocalPackageResolutions = async ({ cwd }: Options) => {
 };
 
 const installYarn2 = async ({ cwd, pnp, name }: Options) => {
+  // eslint-disable-next-line @typescript-eslint/no-shadow
   const command = [
     `yarn set version berry`,
     `yarn config set enableGlobalCache true`,
+    `yarn config set checksumBehavior ignore`,
     `yarn config set nodeLinker ${pnp ? 'pnp' : 'node-modules'}`,
   ];
 
@@ -142,9 +147,10 @@ const installYarn2 = async ({ cwd, pnp, name }: Options) => {
 };
 
 const configureYarn2ForE2E = async ({ cwd }: Options) => {
+  // eslint-disable-next-line @typescript-eslint/no-shadow
   const command = [
     // ⚠️ Need to set registry because Yarn 2 is not using the conf of Yarn 1 (URL is hardcoded in CircleCI config.yml)
-    `yarn config set npmScopes --json '{ "storybook": { "npmRegistryServer": "http://localhost:6001/" } }'`,
+    `yarn config set npmRegistryServer http://localhost:6001/`,
     // Some required magic to be able to fetch deps from local registry
     `yarn config set unsafeHttpWhitelist --json '["localhost"]'`,
     // Disable fallback mode to make sure everything is required correctly
@@ -162,12 +168,13 @@ const configureYarn2ForE2E = async ({ cwd }: Options) => {
   );
 };
 
-const generate = async ({ cwd, name, appName, version, generator }: Options) => {
+const generate = async ({ cwd, name, appName, version, generator, envs }: Options) => {
+  // eslint-disable-next-line @typescript-eslint/no-shadow
   const command = generator.replace(/{{appName}}/g, appName).replace(/{{version}}/g, version);
 
   await exec(
     command,
-    { cwd },
+    { cwd, env: { ...process.env, ...envs } },
     {
       startMessage: `🏗 Bootstrapping ${name} project (this might take a few minutes)`,
       errorMessage: `🚨 Bootstrapping ${name} failed`,
@@ -180,7 +187,7 @@ const addAdditionalFiles = async ({ additionalFiles, cwd }: Options) => {
 
   await Promise.all(
     additionalFiles.map(async (file) => {
-      await outputFile(path.resolve(cwd, file.path), file.contents, { encoding: 'UTF-8' });
+      await outputFile(path.resolve(cwd, file.path), file.contents, { encoding: 'utf-8' });
     })
   );
 };
@@ -201,6 +208,7 @@ const initStorybook = async ({ cwd, autoDetect = true, name, e2e, pnp }: Options
   // This is bundled into a single javascript file.
   const sbCLICommand = `node ${__filename}`;
 
+  // eslint-disable-next-line @typescript-eslint/no-shadow
   const command = `${sbCLICommand} init ${flags.join(' ')}`;
 
   await exec(
@@ -215,8 +223,12 @@ const initStorybook = async ({ cwd, autoDetect = true, name, e2e, pnp }: Options
 
 const addRequiredDeps = async ({ cwd, additionalDeps }: Options) => {
   // Remove any lockfile generated without Yarn 2
-  shell.rm('-f', path.join(cwd, 'package-lock.json'), path.join(cwd, 'yarn.lock'));
+  await Promise.all([
+    remove(path.join(cwd, 'package-lock.json')),
+    remove(path.join(cwd, 'yarn.lock')),
+  ]);
 
+  // eslint-disable-next-line @typescript-eslint/no-shadow
   const command =
     additionalDeps && additionalDeps.length > 0
       ? `yarn add -D ${additionalDeps.join(' ')}`

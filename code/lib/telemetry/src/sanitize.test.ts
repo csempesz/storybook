@@ -1,10 +1,26 @@
+/* eslint-disable local-rules/no-uncategorized-errors */
 import { sanitizeError, cleanPaths } from './sanitize';
 
 describe(`Errors Helpers`, () => {
   describe(`sanitizeError`, () => {
+    it(`Sanitizes ansi codes in error`, () => {
+      const errorMessage = `\u001B[4mStorybook\u001B[0m`;
+      let e: any;
+      try {
+        throw new Error(errorMessage);
+      } catch (error) {
+        e = error;
+      }
+
+      const sanitizedError = sanitizeError(e);
+
+      expect(sanitizedError.message).toEqual('Storybook');
+      expect(sanitizedError.stack).toContain('Error: Storybook');
+    });
+
     it(`Sanitizes current path from error stacktraces`, () => {
       const errorMessage = `this is a test`;
-      let e;
+      let e: any;
       try {
         throw new Error(errorMessage);
       } catch (error) {
@@ -18,7 +34,7 @@ describe(`Errors Helpers`, () => {
 
       expect(sanitizedError.message).toEqual(expect.stringContaining(errorMessage));
       expect(sanitizedError.message).toEqual(
-        expect.not.stringContaining(process.cwd().replaceAll(`\\`, `\\\\`))
+        expect.not.stringContaining(process.cwd().replace(/\\/g, `\\\\`))
       );
     });
 
@@ -69,14 +85,12 @@ describe(`Errors Helpers`, () => {
       `should clean path on unix: %s`,
       (filePath) => {
         const cwdMockPath = `/Users/username/storybook-app`;
-        const fullPath = `${cwdMockPath}/${filePath}`;
-
         const mockCwd = jest.spyOn(process, `cwd`).mockImplementation(() => cwdMockPath);
 
-        const errorMessage = `This path ${fullPath} is a test ${fullPath}`;
+        const errorMessage = `Path 1 /Users/Username/storybook-app/${filePath} Path 2 /Users/username/storybook-app/${filePath}`;
 
         expect(cleanPaths(errorMessage, `/`)).toBe(
-          `This path $SNIP/${filePath} is a test $SNIP/${filePath}`
+          `Path 1 $SNIP/${filePath} Path 2 $SNIP/${filePath}`
         );
         mockCwd.mockRestore();
       }
@@ -86,14 +100,12 @@ describe(`Errors Helpers`, () => {
       `should clean path on windows: %s`,
       (filePath) => {
         const cwdMockPath = `C:\\Users\\username\\storybook-app`;
-        const fullPath = `${cwdMockPath}\\${filePath}`;
 
-        const mockCwd = jest.spyOn(process, `cwd`).mockImplementation(() => cwdMockPath);
+        const mockCwd = jest.spyOn(process, `cwd`).mockImplementationOnce(() => cwdMockPath);
 
-        const errorMessage = `This path ${fullPath} is a test ${fullPath}`;
-
+        const errorMessage = `Path 1 C:\\Users\\username\\storybook-app\\${filePath} Path 2 c:\\Users\\username\\storybook-app\\${filePath}`;
         expect(cleanPaths(errorMessage, `\\`)).toBe(
-          `This path $SNIP\\${filePath} is a test $SNIP\\${filePath}`
+          `Path 1 $SNIP\\${filePath} Path 2 $SNIP\\${filePath}`
         );
         mockCwd.mockRestore();
       }

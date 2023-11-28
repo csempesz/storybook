@@ -1,9 +1,10 @@
 import { Configuration } from 'webpack';
 import * as path from 'path';
-import type { Preset } from '@storybook/core-common';
+import { Preset } from '@storybook/types';
+import fs from 'fs';
 
-import type { PresetOptions } from './preset-options';
-import type { AngularOptions } from '../types';
+import { PresetOptions } from './preset-options';
+import { AngularOptions } from '../types';
 
 /**
  * Source : https://github.com/angular/angular-cli/blob/ebccb5de4a455af813c5e82483db6af20666bdbd/packages/angular_devkit/build_angular/src/utils/load-esm.ts#L23
@@ -19,7 +20,7 @@ import type { AngularOptions } from '../types';
  * @returns A Promise that resolves to the dynamically imported module.
  */
 function loadEsmModule<T>(modulePath: string): Promise<T> {
-  // eslint-disable-next-line no-new-func
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval
   return new Function('modulePath', `return import(modulePath);`)(modulePath) as Promise<T>;
 }
 
@@ -30,13 +31,12 @@ function loadEsmModule<T>(modulePath: string): Promise<T> {
  * Information about Ivy can be found here https://angular.io/guide/ivy
  */
 export const runNgcc = async () => {
-  let ngcc: typeof import('@angular/compiler-cli/ngcc');
+  let ngcc: any;
   try {
-    ngcc = await import('@angular/compiler-cli/ngcc');
+    // eslint-disable-next-line global-require
+    ngcc = require('@angular/compiler-cli/ngcc');
   } catch (error) {
-    ngcc = await loadEsmModule<typeof import('@angular/compiler-cli/ngcc')>(
-      '@angular/compiler-cli/ngcc'
-    );
+    ngcc = await loadEsmModule('@angular/compiler-cli/ngcc');
   }
 
   ngcc.process({
@@ -50,31 +50,36 @@ export const runNgcc = async () => {
 };
 
 export const webpack = async (webpackConfig: Configuration, options: PresetOptions) => {
+  const packageJsonPath = require.resolve('@angular/core/package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  const VERSION = packageJson.version;
   const framework = await options.presets.apply<Preset>('framework');
   const angularOptions = (typeof framework === 'object' ? framework.options : {}) as AngularOptions;
+  const angularMajorVersion = VERSION.split('.')[0];
+  const isAngular16OrNewer = parseInt(angularMajorVersion, 10) >= 16;
 
   // Default to true, if undefined
   if (angularOptions.enableIvy === false) {
     return webpackConfig;
   }
 
-  if (angularOptions.enableNgcc !== false) {
+  let extraMainFields: string[] = [];
+
+  if (angularOptions.enableNgcc !== false && !isAngular16OrNewer) {
+    // TODO: Drop if Angular 14 and 15 are not supported anymore
     runNgcc();
+    extraMainFields = ['es2015_ivy_ngcc', 'module_ivy_ngcc', 'main_ivy_ngcc'];
+  }
+
+  if (!isAngular16OrNewer) {
+    extraMainFields.push('es2015');
   }
 
   return {
     ...webpackConfig,
     resolve: {
       ...webpackConfig.resolve,
-      mainFields: [
-        'es2015_ivy_ngcc',
-        'module_ivy_ngcc',
-        'main_ivy_ngcc',
-        'es2015',
-        'browser',
-        'module',
-        'main',
-      ],
+      mainFields: [...extraMainFields, 'browser', 'module', 'main'],
     },
   };
 };

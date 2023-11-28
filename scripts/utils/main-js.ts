@@ -1,7 +1,9 @@
 import { existsSync } from 'fs';
 import { join, resolve } from 'path';
 
-import { ConfigFile, readConfig } from '../../code/lib/csf-tools';
+import slash from 'slash';
+import type { ConfigFile } from '../../code/lib/csf-tools';
+import { readConfig } from '../../code/lib/csf-tools';
 import { getInterpretedFile } from '../../code/lib/core-common';
 
 export async function readMainConfig({ cwd }: { cwd: string }) {
@@ -18,5 +20,5 @@ export async function readMainConfig({ cwd }: { cwd: string }) {
 
 export function addPreviewAnnotations(mainConfig: ConfigFile, paths: string[]) {
   const config = mainConfig.getFieldValue(['previewAnnotations']) as string[];
-  mainConfig.setFieldValue(['previewAnnotations'], [...(config || []), ...paths]);
+  mainConfig.setFieldValue(['previewAnnotations'], [...(config || []), ...paths.map(slash)]);
 }

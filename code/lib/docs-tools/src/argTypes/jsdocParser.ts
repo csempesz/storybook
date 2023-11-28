@@ -1,4 +1,5 @@
-import doctrine, { Annotation } from 'doctrine';
+import type { Annotation } from 'doctrine';
+import doctrine from 'doctrine';
 
 export interface ExtractedJsDocParam {
   name: string;
@@ -16,6 +17,7 @@ export interface ExtractedJsDocReturns {
 
 export interface ExtractedJsDoc {
   params?: ExtractedJsDocParam[];
+  deprecated?: string;
   returns?: ExtractedJsDocReturns;
   ignore: boolean;
 }
@@ -56,7 +58,7 @@ function parse(content: string, tags: string[]): Annotation {
 }
 
 const DEFAULT_OPTIONS = {
-  tags: ['param', 'arg', 'argument', 'returns', 'ignore'],
+  tags: ['param', 'arg', 'argument', 'returns', 'ignore', 'deprecated'],
 };
 
 export const parseJsDoc: ParseJsDoc = (
@@ -71,6 +73,7 @@ export const parseJsDoc: ParseJsDoc = (
   }
 
   const jsDocAst = parse(value, options.tags);
+
   const extractedTags = extractJsDocTags(jsDocAst);
 
   if (extractedTags.ignore) {
@@ -93,6 +96,7 @@ export const parseJsDoc: ParseJsDoc = (
 function extractJsDocTags(ast: doctrine.Annotation): ExtractedJsDoc {
   const extractedTags: ExtractedJsDoc = {
     params: null,
+    deprecated: null,
     returns: null,
     ignore: false,
   };
@@ -116,6 +120,13 @@ function extractJsDocTags(ast: doctrine.Annotation): ExtractedJsDoc {
               extractedTags.params = [];
             }
             extractedTags.params.push(paramTag);
+          }
+          break;
+        }
+        case 'deprecated': {
+          const deprecatedTag = extractDeprecated(tag);
+          if (deprecatedTag != null) {
+            extractedTags.deprecated = deprecatedTag;
           }
           break;
         }
@@ -158,6 +169,14 @@ function extractParam(tag: doctrine.Tag): ExtractedJsDocParam {
         return tag.type != null ? extractTypeName(tag.type) : null;
       },
     };
+  }
+
+  return null;
+}
+
+function extractDeprecated(tag: doctrine.Tag): string {
+  if (tag.title != null) {
+    return tag.description;
   }
 
   return null;

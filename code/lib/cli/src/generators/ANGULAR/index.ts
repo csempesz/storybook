@@ -1,90 +1,101 @@
-import path, { join } from 'path';
-import semver from 'semver';
-import {
-  checkForProjects,
-  editStorybookTsConfig,
-  getAngularAppTsConfigJson,
-  getAngularAppTsConfigPath,
-  getBaseTsConfigName,
-} from './angular-helpers';
-import { writeFileAsJson, copyTemplate } from '../../helpers';
-import { getBaseDir } from '../../dirs';
+import { join } from 'path';
 import { baseGenerator } from '../baseGenerator';
-import { Generator } from '../types';
+import type { Generator } from '../types';
 import { CoreBuilder } from '../../project_types';
+import { AngularJSON, compoDocPreviewPrefix, promptForCompoDocs } from './helpers';
+import { getCliDir } from '../../dirs';
+import { paddedLog, copyTemplate } from '../../helpers';
 
-function editAngularAppTsConfig() {
-  const tsConfigJson = getAngularAppTsConfigJson();
-  const glob = '**/*.stories.*';
-  if (!tsConfigJson) {
-    return;
+const generator: Generator<{ projectName: string }> = async (
+  packageManager,
+  npmOptions,
+  options,
+  commandOptions
+) => {
+  const angularJSON = new AngularJSON();
+
+  if (
+    !angularJSON.projects ||
+    (angularJSON.projects && Object.keys(angularJSON.projects).length === 0)
+  ) {
+    throw new Error(
+      'Storybook was not able to find any projects in your angular.json file. Are you sure this is an Angular CLI project?'
+    );
   }
 
-  const { exclude = [] } = tsConfigJson;
-  if (exclude.includes(glob)) {
-    return;
+  if (angularJSON.projectsWithoutStorybook.length === 0) {
+    throw new Error(
+      'Every project in your workspace is already set up with Storybook. There is nothing to do!'
+    );
   }
 
-  tsConfigJson.exclude = [...exclude, glob];
-  writeFileAsJson(getAngularAppTsConfigPath(), tsConfigJson);
-}
+  const angularProjectName = await angularJSON.getProjectName();
+  paddedLog(`Adding Storybook support to your "${angularProjectName}" project`);
 
-const generator: Generator = async (packageManager, npmOptions, options) => {
-  checkForProjects();
+  const angularProject = angularJSON.getProjectSettingsByName(angularProjectName);
 
-  const angularVersion = semver.coerce(
-    packageManager.retrievePackageJson().dependencies['@angular/core']
-  )?.version;
-  const isWebpack5 = semver.gte(angularVersion, '12.0.0');
-  const updatedOptions = isWebpack5 ? { ...options, builder: CoreBuilder.Webpack5 } : options;
-
-  await baseGenerator(packageManager, npmOptions, updatedOptions, 'angular', {
-    extraPackages: ['@compodoc/compodoc'],
-    addScripts: false,
-  });
-
-  const templateDir = join(getBaseDir(), 'templates', 'angular');
-  copyTemplate(templateDir);
-
-  editAngularAppTsConfig();
-
-  // TODO: we need to add the following:
-
-  /*
-  "storybook": {
-    "builder": "@storybook/angular:start-storybook",
-    "options": {
-      "browserTarget": "angular-cli:build",
-      "port": 4400
-    }
-  },
-  "build-storybook": {
-    "builder": "@storybook/angular:build-storybook",
-    "options": {
-      "browserTarget": "angular-cli:build"
-    }
+  if (!angularProject) {
+    throw new Error(
+      `Somehow we were not able to retrieve the "${angularProjectName}" project in your angular.json file. This is likely a bug in Storybook, please file an issue.`
+    );
   }
-  */
 
-  // to the user's angular.json file. see: https://github.com/storybookjs/storybook/blob/next/examples/angular-cli/angular.json#L78
+  const { root, projectType } = angularProject;
+  const { projects } = angularJSON;
+  const useCompodoc = commandOptions.yes ? true : await promptForCompoDocs();
+  const storybookFolder = root ? `${root}/.storybook` : '.storybook';
 
-  // then we want to add these scripts to package.json
-  // packageManager.addScripts({
-  //   storybook: 'ng storybook',
-  //   'build-storybook': 'ng build-storybook',
-  // });
-
-  editStorybookTsConfig(path.resolve('./.storybook/tsconfig.json'));
-
-  // edit scripts to generate docs
-  const tsConfigFile = await getBaseTsConfigName();
-  packageManager.addScripts({
-    'docs:json': `compodoc -p ./${tsConfigFile} -e json -d .`,
+  angularJSON.addStorybookEntries({
+    angularProjectName,
+    storybookFolder,
+    useCompodoc,
+    root,
   });
-  packageManager.addStorybookCommandInScripts({
-    port: 6006,
-    preCommand: 'docs:json',
-  });
+  angularJSON.write();
+
+  await baseGenerator(
+    packageManager,
+    npmOptions,
+    {
+      ...options,
+      builder: CoreBuilder.Webpack5,
+      ...(useCompodoc && {
+        frameworkPreviewParts: {
+          prefix: compoDocPreviewPrefix,
+        },
+      }),
+    },
+    'angular',
+    {
+      ...(useCompodoc && { extraPackages: ['@compodoc/compodoc', '@storybook/addon-docs'] }),
+      addScripts: false,
+      componentsDestinationPath: root ? `${root}/src/stories` : undefined,
+      storybookConfigFolder: storybookFolder,
+    },
+    'angular'
+  );
+
+  if (Object.keys(projects).length === 1) {
+    packageManager.addScripts({
+      storybook: `ng run ${angularProjectName}:storybook`,
+      'build-storybook': `ng run ${angularProjectName}:build-storybook`,
+    });
+  }
+
+  let projectTypeValue = projectType || 'application';
+  if (projectTypeValue !== 'application' && projectTypeValue !== 'library') {
+    projectTypeValue = 'application';
+  }
+
+  const templateDir = join(getCliDir(), 'templates', 'angular', projectTypeValue);
+  if (templateDir) {
+    copyTemplate(templateDir, root || undefined);
+  }
+
+  return {
+    projectName: angularProjectName,
+    configDir: storybookFolder,
+  };
 };
 
 export default generator;

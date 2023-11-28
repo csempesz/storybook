@@ -1,7 +1,9 @@
 ```ts
 // YourPage.stories.ts
 
-import { Meta, moduleMetadata, Story } from '@storybook/angular';
+import { moduleMetadata } from '@storybook/angular';
+
+import type { Meta, StoryObj } from '@storybook/angular';
 
 import { CommonModule } from '@angular/common';
 import { HttpClientModule } from '@angular/common/http';
@@ -15,12 +17,7 @@ import { PageLayout } from './PageLayout.component';
 
 import { MockGraphQLModule } from './mock-graphql.module';
 
-export default {
-  /* 👇 The title prop is optional.
-   * See https://storybook.js.org/docs/7.0/angular/configure/overview#configure-story-loading
-   * to learn how to generate automatic titles
-   */
-  title: 'DocumentScreen',
+const meta: Meta<DocumentScreen> = {
   component: DocumentScreen,
   decorators: [
     moduleMetadata({
@@ -28,7 +25,9 @@ export default {
       imports: [CommonModule, HttpClientModule, MockGraphQLModule],
     }),
   ],
-} as Meta;
+};
+
+export default meta;
 
 //👇The mocked data that will be used in the story
 const TestData = {
@@ -52,32 +51,10 @@ const TestData = {
         'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
       status: 'approved',
     },
-    {
-      id: 2,
-      userID: 1,
-      title: 'Something else',
-      content:
-        'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-      status: 'awaiting review',
-    },
-    {
-      id: 3,
-      userID: 2,
-      title: 'Another document',
-      content:
-        'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-      status: 'approved',
-    },
-    {
-      id: 4,
-      userID: 2,
-      title: 'Something',
-      content:
-        'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-      status: 'approved',
-    },
   ],
 };
+
+type Story = StoryObj<DocumentScreen>;
 
 export const MockedSuccess: Story = {
   parameters: {

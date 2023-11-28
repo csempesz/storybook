@@ -2,6 +2,8 @@
 title: 'Viewport'
 ---
 
+<YouTubeCallout id="uydF1ltw7-g" title="Stop resizing your browser — Storybook viewport" />
+
 The Viewport toolbar item allows you to adjust the dimensions of the iframe your story is rendered in. It makes it easy to develop responsive UIs.
 
 <video autoPlay muted playsInline loop>
@@ -15,13 +17,14 @@ The Viewport toolbar item allows you to adjust the dimensions of the iframe your
 
 Out of the box, the Viewport addon offers you a standard set of viewports that you can use.
 
-If you want to change the default set of viewports, you can set the global `parameters.viewport` [parameter](../writing-stories/parameters.md) in your [`.storybook/preview.js`](../configure/overview.md#configure-story-rendering):
+If you want to change the default set of viewports, you can set the global `parameters.viewport` [parameter](../writing-stories/parameters.md) in your [`.storybook/preview.js`](../configure/index.md#configure-story-rendering):
 
 <!-- prettier-ignore-start -->
 
 <CodeSnippets
   paths={[
     'common/storybook-preview-change-viewports.js.mdx',
+    'common/storybook-preview-change-viewports.ts.mdx',
   ]}
 />
 
@@ -29,11 +32,12 @@ If you want to change the default set of viewports, you can set the global `para
 
 The viewport global can take an object with the following keys:
 
-| Field               |  Type   |                Description                | Default Value  |
-| ------------------- | :-----: | :---------------------------------------: | :------------: |
-| **defaultViewport** | String  |         Sets the default viewport         | `'responsive'` |
-| **disable**         | Boolean |           Disables the viewport           |      N/A       |
-| **viewports**       | Object  | The configuration object for the viewport |      `{}`      |
+| Field                  |  Type   |                        Description                        | Default Value  |
+| ---------------------- | :-----: | :-------------------------------------------------------: | :------------: |
+| **defaultViewport**    | String  |                 Sets the default viewport                 | `'responsive'` |
+| **defaultOrientation** | String  | Sets the default orientation (e.g. portrait or landscape) |  `'portrait'`  |
+| **disable**            | Boolean |                   Disables the viewport                   |      N/A       |
+| **viewports**          | Object  |         The configuration object for the viewport         |      `{}`      |
 
 The viewports object needs the following keys:
 
@@ -45,15 +49,16 @@ The viewports object needs the following keys:
 
 ### Use a detailed set of devices
 
-By default, Storybook uses a [minimal set of viewports](https://github.com/storybookjs/storybook/blob/master/addons/viewport/src/defaults.ts#L135) to get you started. But you're not restricted to these. The addon offers a more granular list of devices that you can use.
+By default, Storybook uses a [minimal set of viewports](https://github.com/storybookjs/storybook/blob/next/code/addons/viewport/src/defaults.ts#L167) to get you started. But you're not restricted to these. The addon offers a more granular list of devices that you can use.
 
-Change your [`.storybook/preview.js`](../configure/overview.md#configure-story-rendering) to the following:
+Change your [`.storybook/preview.js`](../configure/index.md#configure-story-rendering) to the following:
 
 <!-- prettier-ignore-start -->
 
 <CodeSnippets
   paths={[
     'common/storybook-preview-granular-viewports.js.mdx',
+    'common/storybook-preview-granular-viewports.ts.mdx',
   ]}
 />
 
@@ -65,7 +70,7 @@ See [here](https://github.com/storybookjs/storybook/blob/master/addons/viewport/
 
 ### Add new devices
 
-If you have either a specific viewport or a list of viewports that you need to use, you can modify your [`.storybook/preview.js`](../configure/overview.md#configure-story-rendering) file and include them:
+If you have either a specific viewport or a list of viewports that you need to use, you can modify your [`.storybook/preview.js`](../configure/index.md#configure-story-rendering) file and include them:
 
 <!-- prettier-ignore-start -->
 
@@ -84,6 +89,7 @@ Make the following change to use them in your Storybook:
 <CodeSnippets
   paths={[
     'common/storybook-preview-viewport-use-new-devices.js.mdx',
+    'common/storybook-preview-viewport-use-new-devices.ts.mdx',
   ]}
 />
 
@@ -100,12 +106,13 @@ For instance, if you want to use these two with the minimal set of viewports, yo
 <CodeSnippets
   paths={[
     'common/storybook-preview-merge-viewports.js.mdx',
+    'common/storybook-preview-merge-viewports.ts.mdx',
   ]}
 />
 
 <!-- prettier-ignore-end -->
 
-Both viewports (`Kindle Fire 2` and `Kindle Fire HD`) will feature in the list of devices by merging them into the [`MINIMAL_VIEWPORTS`](https://github.com/storybookjs/storybook/blob/master/addons/viewport/src/defaults.ts#L135).
+Both viewports (`Kindle Fire 2` and `Kindle Fire HD`) will feature in the list of devices by merging them into the [`MINIMAL_VIEWPORTS`](https://github.com/storybookjs/storybook/blob/next/code/addons/viewport/src/defaults.ts#L167).
 
 ### Configuring per component or story
 
@@ -119,15 +126,17 @@ Update your story through [parameters](../writing-stories/parameters.md) to incl
   paths={[
     'react/my-component-story-configure-viewports.js.mdx',
     'react/my-component-story-configure-viewports.ts.mdx',
-    'react/my-component-story-configure-viewports.mdx.mdx',
     'vue/my-component-story-configure-viewports.js.mdx',
-    'vue/my-component-story-configure-viewports.mdx.mdx',
+    'vue/my-component-story-configure-viewports.ts.mdx',
     'angular/my-component-story-configure-viewports.ts.mdx',
-    'angular/my-component-story-configure-viewports.mdx.mdx',
     'web-components/my-component-story-configure-viewports.js.mdx',
+    'web-components/my-component-story-configure-viewports.ts.mdx',
     'svelte/my-component-story-configure-viewports.js.mdx',
-    'svelte/my-component-story-configure-viewports.mdx.mdx',
+    'solid/my-component-story-configure-viewports.js.mdx',
+    'solid/my-component-story-configure-viewports.ts.mdx',
   ]}
+  usesCsf3
+  csf2Path="essentials/viewport#snippet-my-component-story-configure-viewports"
 />
 
 <!-- prettier-ignore-end -->

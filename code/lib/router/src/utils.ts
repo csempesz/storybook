@@ -1,8 +1,9 @@
 import { once } from '@storybook/client-logger';
 import { dequal as deepEqual } from 'dequal';
-import isPlainObject from 'lodash/isPlainObject';
+import isPlainObject from 'lodash/isPlainObject.js';
 import memoize from 'memoizerific';
-import qs, { IStringifyOptions } from 'qs';
+import type { IStringifyOptions } from 'qs';
+import qs from 'qs';
 import { dedent } from 'ts-dedent';
 
 export interface StoryData {
@@ -81,8 +82,13 @@ const validateArgs = (key = '', value: unknown): boolean => {
       COLOR_REGEXP.test(value)
     );
   }
-  if (Array.isArray(value)) return value.every((v) => validateArgs(key, v));
-  if (isPlainObject(value)) return Object.entries(value).every(([k, v]) => validateArgs(k, v));
+  if (Array.isArray(value)) {
+    return value.every((v) => validateArgs(key, v));
+  }
+
+  if (isPlainObject(value)) {
+    return Object.entries(value as Record<string, any>).every(([k, v]) => validateArgs(k, v));
+  }
   return false;
 };
 
@@ -94,9 +100,14 @@ const encodeSpecialValues = (value: unknown): any => {
     if (COLOR_REGEXP.test(value)) return `!${value.replace(/[\s%]/g, '')}`;
     return value;
   }
+
+  if (typeof value === 'boolean') {
+    return `!${value}`;
+  }
+
   if (Array.isArray(value)) return value.map(encodeSpecialValues);
   if (isPlainObject(value)) {
-    return Object.entries(value).reduce(
+    return Object.entries(value as Record<string, any>).reduce(
       (acc, [key, val]) => Object.assign(acc, { [key]: encodeSpecialValues(val) }),
       {}
     );
@@ -111,7 +122,7 @@ const QS_OPTIONS: IStringifyOptions = {
   format: 'RFC1738', // encode spaces using the + sign
   serializeDate: (date: Date) => `!date(${date.toISOString()})`,
 };
-export const buildArgsParam = (initialArgs: Args, args: Args): string => {
+export const buildArgsParam = (initialArgs: Args | undefined, args: Args): string => {
   const update = deepDiff(initialArgs, args);
   if (!update || update === DEEPLY_EQUAL) return '';
 
@@ -138,7 +149,7 @@ interface Query {
 }
 
 export const queryFromString = memoize(1000)(
-  (s: string): Query => qs.parse(s, { ignoreQueryPrefix: true })
+  (s?: string): Query => (s !== undefined ? qs.parse(s, { ignoreQueryPrefix: true }) : {})
 );
 export const queryFromLocation = (location: Partial<Location>) => queryFromString(location.search);
 export const stringifyQuery = (query: Query) =>
@@ -147,8 +158,11 @@ export const stringifyQuery = (query: Query) =>
 type Match = { path: string };
 
 export const getMatch = memoize(1000)(
-  (current: string, target: string, startsWith = true): Match | null => {
+  (current: string, target: string | RegExp, startsWith = true): Match | null => {
     if (startsWith) {
+      if (typeof target !== 'string') {
+        throw new Error('startsWith only works with string targets');
+      }
       const startsWithTarget = current && current.startsWith(target);
       if (startsWithTarget) {
         return { path: current };

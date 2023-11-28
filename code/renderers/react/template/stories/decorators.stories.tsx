@@ -1,10 +1,12 @@
-import React, { FC } from 'react';
-import type { ComponentStory, ComponentMeta } from '@storybook/react';
+import type { FC } from 'react';
+import React, { useContext, createContext } from 'react';
+import type { StoryObj, Meta } from '@storybook/react';
 
 const Component: FC = () => <p>Story</p>;
 
 export default {
   component: Component,
+  tags: ['autodocs'],
   decorators: [
     (Story) => (
       <>
@@ -13,9 +15,9 @@ export default {
       </>
     ),
   ],
-} as ComponentMeta<typeof Component>;
+} as Meta<typeof Component>;
 
-export const All: ComponentStory<typeof Component> = {
+export const All: StoryObj<typeof Component> = {
   decorators: [
     (Story) => (
       <>
@@ -24,4 +26,23 @@ export const All: ComponentStory<typeof Component> = {
       </>
     ),
   ],
+};
+
+// This story will error if `parameters.docs.source.excludeDecorators` is true:
+// See https://github.com/storybookjs/storybook/issues/21900
+const TestContext = createContext<boolean>(false);
+export const Context: StoryObj<typeof Component> = {
+  // parameters: { docs: { source: { excludeDecorators: true } } },
+  decorators: [
+    (Story) => (
+      <TestContext.Provider value>
+        <Story />
+      </TestContext.Provider>
+    ),
+  ],
+  render: function Render(args, context) {
+    const value = useContext(TestContext);
+    if (!value) throw new Error('TestContext not set, decorator did not run!');
+    return <p>Story</p>;
+  },
 };

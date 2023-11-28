@@ -1,14 +1,15 @@
 /* eslint-disable no-param-reassign */
-import type { Type } from '@angular/core';
-import type { DecoratorFunction, StoryContext } from '@storybook/csf';
+import { Type } from '@angular/core';
+import { ApplicationConfig } from '@angular/platform-browser';
+import { DecoratorFunction, StoryContext } from '@storybook/types';
 import { computesTemplateFromComponent } from './angular-beta/ComputesTemplateFromComponent';
 import { isComponent } from './angular-beta/utils/NgComponentAnalyzer';
-import type { ICollection, NgModuleMetadata, AngularFramework } from './types';
+import { ICollection, NgModuleMetadata, AngularRenderer } from './types';
 
 // We use `any` here as the default type rather than `Args` because we need something that is
 // castable to any component-specific args type when the user is being careful.
 export const moduleMetadata =
-  <TArgs = any>(metadata: Partial<NgModuleMetadata>): DecoratorFunction<AngularFramework, TArgs> =>
+  <TArgs = any>(metadata: Partial<NgModuleMetadata>): DecoratorFunction<AngularRenderer, TArgs> =>
   (storyFn) => {
     const story = storyFn();
     const storyMetadata = story.moduleMetadata || {};
@@ -29,11 +30,39 @@ export const moduleMetadata =
     };
   };
 
+/**
+ * Decorator to set the config options which are available during the application bootstrap operation
+ */
+export function applicationConfig<TArgs = any>(
+  /**
+   * Set of config options available during the application bootstrap operation.
+   */
+  config: ApplicationConfig
+): DecoratorFunction<AngularRenderer, TArgs> {
+  return (storyFn) => {
+    const story = storyFn();
+
+    const storyConfig: ApplicationConfig | undefined = story.applicationConfig;
+
+    return {
+      ...story,
+      applicationConfig:
+        storyConfig || config
+          ? {
+              ...config,
+              ...storyConfig,
+              providers: [...(config?.providers || []), ...(storyConfig?.providers || [])],
+            }
+          : undefined,
+    };
+  };
+}
+
 export const componentWrapperDecorator =
   <TArgs = any>(
     element: Type<unknown> | ((story: string) => string),
-    props?: ICollection | ((storyContext: StoryContext<AngularFramework, TArgs>) => ICollection)
-  ): DecoratorFunction<AngularFramework, TArgs> =>
+    props?: ICollection | ((storyContext: StoryContext<AngularRenderer, TArgs>) => ICollection)
+  ): DecoratorFunction<AngularRenderer, TArgs> =>
   (storyFn, storyContext) => {
     const story = storyFn();
     const currentProps = typeof props === 'function' ? (props(storyContext) as ICollection) : props;

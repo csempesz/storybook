@@ -1,24 +1,9 @@
 import path from 'path';
 import fse from 'fs-extra';
+import type { CoreCommon_StorybookInfo, PackageJson } from '@storybook/types';
 import { getStorybookConfiguration } from './get-storybook-configuration';
-import { PackageJson } from '../types';
 
-interface StorybookInfo {
-  version: string;
-  // FIXME: these are renderers for now,
-  // need to update with framework OR fix
-  // the calling code
-  framework: string;
-  frameworkPackage: string;
-  renderer: string;
-  rendererPackage: string;
-  configDir?: string;
-  mainConfig?: string;
-  previewConfig?: string;
-  managerConfig?: string;
-}
-
-const rendererPackages: Record<string, string> = {
+export const rendererPackages: Record<string, string> = {
   '@storybook/react': 'react',
   '@storybook/vue': 'vue',
   '@storybook/vue3': 'vue3',
@@ -27,31 +12,57 @@ const rendererPackages: Record<string, string> = {
   '@storybook/web-components': 'web-components',
   '@storybook/polymer': 'polymer',
   '@storybook/ember': 'ember',
-  '@storybook/marko': 'marko',
-  '@storybook/mithril': 'mithril',
-  '@storybook/riot': 'riot',
   '@storybook/svelte': 'svelte',
   '@storybook/preact': 'preact',
-  '@storybook/rax': 'rax',
   '@storybook/server': 'server',
+  // community (outside of monorepo)
+  'storybook-framework-qwik': 'qwik',
+  'storybook-solidjs': 'solid',
 };
+
+export const frameworkPackages: Record<string, string> = {
+  '@storybook/angular': 'angular',
+  '@storybook/ember': 'ember',
+  '@storybook/html-vite': 'html-vite',
+  '@storybook/html-webpack5': 'html-webpack5',
+  '@storybook/nextjs': 'nextjs',
+  '@storybook/preact-vite': 'preact-vite',
+  '@storybook/preact-webpack5': 'preact-webpack5',
+  '@storybook/react-vite': 'react-vite',
+  '@storybook/react-webpack5': 'react-webpack5',
+  '@storybook/server-webpack5': 'server-webpack5',
+  '@storybook/svelte-vite': 'svelte-vite',
+  '@storybook/svelte-webpack5': 'svelte-webpack5',
+  '@storybook/sveltekit': 'sveltekit',
+  '@storybook/vue3-vite': 'vue3-vite',
+  '@storybook/vue3-webpack5': 'vue3-webpack5',
+  '@storybook/vue-vite': 'vue-vite',
+  '@storybook/vue-webpack5': 'vue-webpack5',
+  '@storybook/web-components-vite': 'web-components-vite',
+  '@storybook/web-components-webpack5': 'web-components-webpack5',
+  // community (outside of monorepo)
+  'storybook-framework-qwik': 'qwik',
+  'storybook-solidjs-vite': 'solid',
+};
+
+export const builderPackages = ['@storybook/builder-webpack5', '@storybook/builder-vite'];
 
 const logger = console;
 
 const findDependency = (
   { dependencies, devDependencies, peerDependencies }: PackageJson,
   predicate: (entry: [string, string | undefined]) => string
-) => [
-  Object.entries(dependencies || {}).find(predicate),
-  Object.entries(devDependencies || {}).find(predicate),
-  Object.entries(peerDependencies || {}).find(predicate),
-];
+) =>
+  [
+    Object.entries(dependencies || {}).find(predicate),
+    Object.entries(devDependencies || {}).find(predicate),
+    Object.entries(peerDependencies || {}).find(predicate),
+  ] as const;
 
 const getRendererInfo = (packageJson: PackageJson) => {
   // Pull the viewlayer from dependencies in package.json
   const [dep, devDep, peerDep] = findDependency(packageJson, ([key]) => rendererPackages[key]);
   const [pkg, version] = dep || devDep || peerDep || [];
-  const renderer = pkg ? rendererPackages[pkg] : undefined;
 
   if (dep && devDep && dep[0] === devDep[0]) {
     logger.warn(
@@ -66,16 +77,13 @@ const getRendererInfo = (packageJson: PackageJson) => {
 
   return {
     version,
-    framework: renderer,
     frameworkPackage: pkg,
-    renderer,
-    rendererPackage: pkg,
   };
 };
 
 const validConfigExtensions = ['ts', 'js', 'tsx', 'jsx', 'mjs', 'cjs'];
 
-const findConfigFile = (prefix: string, configDir: string) => {
+export const findConfigFile = (prefix: string, configDir: string) => {
   const filePrefix = path.join(configDir, prefix);
   const extension = validConfigExtensions.find((ext: string) =>
     fse.existsSync(`${filePrefix}.${ext}`)
@@ -83,28 +91,28 @@ const findConfigFile = (prefix: string, configDir: string) => {
   return extension ? `${filePrefix}.${extension}` : null;
 };
 
-const getConfigInfo = (packageJson: PackageJson) => {
-  let configDir = '.storybook';
-  const storybookScript = packageJson.scripts?.storybook;
-  if (storybookScript) {
+const getConfigInfo = (packageJson: PackageJson, configDir?: string) => {
+  let storybookConfigDir = configDir ?? '.storybook';
+  const storybookScript = packageJson.scripts?.['storybook'];
+  if (storybookScript && !configDir) {
     const configParam = getStorybookConfiguration(storybookScript, '-c', '--config-dir');
-    if (configParam) configDir = configParam;
+    if (configParam) storybookConfigDir = configParam;
   }
 
   return {
-    configDir,
-    mainConfig: findConfigFile('main', configDir),
-    previewConfig: findConfigFile('preview', configDir),
-    managerConfig: findConfigFile('manager', configDir),
+    configDir: storybookConfigDir,
+    mainConfig: findConfigFile('main', storybookConfigDir),
+    previewConfig: findConfigFile('preview', storybookConfigDir),
+    managerConfig: findConfigFile('manager', storybookConfigDir),
   };
 };
 
-export const getStorybookInfo = (packageJson: PackageJson) => {
+export const getStorybookInfo = (packageJson: PackageJson, configDir?: string) => {
   const rendererInfo = getRendererInfo(packageJson);
-  const configInfo = getConfigInfo(packageJson);
+  const configInfo = getConfigInfo(packageJson, configDir);
 
   return {
     ...rendererInfo,
     ...configInfo,
-  } as StorybookInfo;
+  } as CoreCommon_StorybookInfo;
 };

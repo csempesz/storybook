@@ -2,6 +2,8 @@
 title: 'Measure & outline'
 ---
 
+<YouTubeCallout id="-S7GtH0hdc4" title="Debug CSS without DevTools — Storybook" />
+
 Storybook's [Measure](https://storybook.js.org/addons/@storybook/addon-measure/) and [Outline](https://storybook.js.org/addons/@storybook/addon-outline) addons give you the necessary tooling to inspect and visually debug CSS layout and alignment issues within your stories. It makes it easy to catch UI bugs early in development.
 
 ## Measure addon
@@ -14,9 +16,11 @@ With Storybook's Measure addon, you can quickly visualize each component's measu
   <source src="addon-measure-optimized.mp4" type="video/mp4" />
 </video>
 
-<div class="aside">
-💡 Alternatively you can press the <code>m</code> key on your keyboard to toggle the addon.
-</div>
+<Callout variant="info" icon="💡">
+
+Alternatively you can press the `m` key on your keyboard to toggle the addon.
+
+</Callout>
 
 ## Outline addon
 

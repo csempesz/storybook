@@ -2,8 +2,8 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "strict": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.*"]
+  "include": ["src/**/*"]
 }

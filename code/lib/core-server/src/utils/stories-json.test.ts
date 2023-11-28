@@ -1,30 +1,24 @@
-import fs from 'fs-extra';
-import { Router, Request, Response } from 'express';
+/// <reference types="@types/jest" />;
+
+import type { Router, Request, Response } from 'express';
 import Watchpack from 'watchpack';
 import path from 'path';
-import debounce from 'lodash/debounce';
+import debounce from 'lodash/debounce.js';
+// @ts-expect-error -- cannot find declaration file
+import { createStoriesMdxIndexer } from '@storybook/addon-docs/preset';
 import { STORY_INDEX_INVALIDATED } from '@storybook/core-events';
-import type { StoryIndex } from '@storybook/store';
-import { loadCsf } from '@storybook/csf-tools';
+import type { StoryIndex } from '@storybook/types';
 import { normalizeStoriesEntry } from '@storybook/core-common';
 
 import { useStoriesJson, DEBOUNCE, convertToIndexV3 } from './stories-json';
-import { ServerChannel } from './get-server-channel';
+import type { ServerChannel } from './get-server-channel';
+import type { StoryIndexGeneratorOptions } from './StoryIndexGenerator';
 import { StoryIndexGenerator } from './StoryIndexGenerator';
+import { csfIndexer } from '../presets/common-preset';
 
 jest.mock('watchpack');
 jest.mock('lodash/debounce');
-
-// FIXME: can't figure out how to import ESM
-jest.mock('@storybook/docs-mdx', async () => ({
-  analyze(content: string) {
-    const importMatches = content.matchAll(/'(.[^']*\.stories)'/g);
-    const imports = Array.from(importMatches).map((match) => match[1]);
-    const title = content.match(/title=['"](.*)['"]/)?.[1];
-    const ofMatch = content.match(/of=\{(.*)\}/)?.[1];
-    return { title, imports, of: ofMatch && imports.length && imports[0] };
-  },
-}));
+jest.mock('@storybook/node-logger');
 
 const workingDir = path.join(__dirname, '__mockdata__');
 const normalizedStories = [
@@ -32,7 +26,7 @@ const normalizedStories = [
     {
       titlePrefix: '',
       directory: './src',
-      files: '**/*.stories.@(ts|js|jsx)',
+      files: '**/*.stories.@(ts|js|mjs|jsx)',
     },
     { workingDir, configDir: workingDir }
   ),
@@ -46,24 +40,21 @@ const normalizedStories = [
   ),
 ];
 
-const csfIndexer = async (fileName: string, opts: any) => {
-  const code = (await fs.readFile(fileName, 'utf-8')).toString();
-  return loadCsf(code, { ...opts, fileName }).parse();
-};
-
 const getInitializedStoryIndexGenerator = async (
   overrides: any = {},
   inputNormalizedStories = normalizedStories
 ) => {
-  const generator = new StoryIndexGenerator(inputNormalizedStories, {
-    storyIndexers: [{ test: /\.stories\..*$/, indexer: csfIndexer }],
+  const options: StoryIndexGeneratorOptions = {
+    storyIndexers: [],
+    indexers: [csfIndexer, createStoriesMdxIndexer(false)],
     configDir: workingDir,
     workingDir,
     storiesV2Compatibility: false,
     storyStoreV7: true,
-    docs: { enabled: true, defaultName: 'docs', docsPage: false },
+    docs: { defaultName: 'docs', autodocs: false },
     ...overrides,
-  });
+  };
+  const generator = new StoryIndexGenerator(inputNormalizedStories, options);
   await generator.initialize();
   return generator;
 };
@@ -116,13 +107,30 @@ describe('useStoriesJson', () => {
       expect(JSON.parse(send.mock.calls[0][0])).toMatchInlineSnapshot(`
         Object {
           "entries": Object {
-            "a--docs": Object {
-              "id": "a--docs",
+            "a--metaof": Object {
+              "id": "a--metaof",
               "importPath": "./src/docs2/MetaOf.mdx",
-              "name": "docs",
-              "standalone": true,
+              "name": "MetaOf",
               "storiesImports": Array [
                 "./src/A.stories.js",
+              ],
+              "tags": Array [
+                "attached-mdx",
+                "docs",
+              ],
+              "title": "A",
+              "type": "docs",
+            },
+            "a--second-docs": Object {
+              "id": "a--second-docs",
+              "importPath": "./src/docs2/SecondMetaOf.mdx",
+              "name": "Second Docs",
+              "storiesImports": Array [
+                "./src/A.stories.js",
+              ],
+              "tags": Array [
+                "attached-mdx",
+                "docs",
               ],
               "title": "A",
               "type": "docs",
@@ -131,6 +139,11 @@ describe('useStoriesJson', () => {
               "id": "a--story-one",
               "importPath": "./src/A.stories.js",
               "name": "Story One",
+              "tags": Array [
+                "component-tag",
+                "story-tag",
+                "story",
+              ],
               "title": "A",
               "type": "story",
             },
@@ -138,6 +151,10 @@ describe('useStoriesJson', () => {
               "id": "b--story-one",
               "importPath": "./src/B.stories.ts",
               "name": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
               "title": "B",
               "type": "story",
             },
@@ -145,33 +162,46 @@ describe('useStoriesJson', () => {
               "id": "d--story-one",
               "importPath": "./src/D.stories.jsx",
               "name": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
               "title": "D",
               "type": "story",
+            },
+            "docs2-componentreference--docs": Object {
+              "id": "docs2-componentreference--docs",
+              "importPath": "./src/docs2/ComponentReference.mdx",
+              "name": "docs",
+              "storiesImports": Array [],
+              "tags": Array [
+                "unattached-mdx",
+                "docs",
+              ],
+              "title": "docs2/ComponentReference",
+              "type": "docs",
             },
             "docs2-notitle--docs": Object {
               "id": "docs2-notitle--docs",
               "importPath": "./src/docs2/NoTitle.mdx",
               "name": "docs",
-              "standalone": true,
               "storiesImports": Array [],
+              "tags": Array [
+                "unattached-mdx",
+                "docs",
+              ],
               "title": "docs2/NoTitle",
-              "type": "docs",
-            },
-            "docs2-template--docs": Object {
-              "id": "docs2-template--docs",
-              "importPath": "./src/docs2/Template.mdx",
-              "name": "docs",
-              "standalone": true,
-              "storiesImports": Array [],
-              "title": "docs2/Template",
               "type": "docs",
             },
             "docs2-yabbadabbadooo--docs": Object {
               "id": "docs2-yabbadabbadooo--docs",
               "importPath": "./src/docs2/Title.mdx",
               "name": "docs",
-              "standalone": true,
               "storiesImports": Array [],
+              "tags": Array [
+                "unattached-mdx",
+                "docs",
+              ],
               "title": "docs2/Yabbadabbadooo",
               "type": "docs",
             },
@@ -179,20 +209,64 @@ describe('useStoriesJson', () => {
               "id": "first-nested-deeply-f--story-one",
               "importPath": "./src/first-nested/deeply/F.stories.js",
               "name": "Story One",
+              "tags": Array [
+                "story",
+              ],
               "title": "first-nested/deeply/F",
+              "type": "story",
+            },
+            "h--story-one": Object {
+              "id": "h--story-one",
+              "importPath": "./src/H.stories.mjs",
+              "name": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
+              "title": "H",
               "type": "story",
             },
             "nested-button--story-one": Object {
               "id": "nested-button--story-one",
               "importPath": "./src/nested/Button.stories.ts",
               "name": "Story One",
+              "tags": Array [
+                "component-tag",
+                "story",
+              ],
               "title": "nested/Button",
+              "type": "story",
+            },
+            "nested-page--docs": Object {
+              "id": "nested-page--docs",
+              "importPath": "./src/nested/Page.stories.mdx",
+              "name": "docs",
+              "storiesImports": Array [],
+              "tags": Array [
+                "stories-mdx",
+                "docs",
+              ],
+              "title": "nested/Page",
+              "type": "docs",
+            },
+            "nested-page--story-one": Object {
+              "id": "nested-page--story-one",
+              "importPath": "./src/nested/Page.stories.mdx",
+              "name": "StoryOne",
+              "tags": Array [
+                "stories-mdx",
+                "story",
+              ],
+              "title": "nested/Page",
               "type": "story",
             },
             "second-nested-g--story-one": Object {
               "id": "second-nested-g--story-one",
               "importPath": "./src/second-nested/G.stories.ts",
               "name": "Story One",
+              "tags": Array [
+                "story",
+              ],
               "title": "second-nested/G",
               "type": "story",
             },
@@ -221,21 +295,44 @@ describe('useStoriesJson', () => {
       expect(JSON.parse(send.mock.calls[0][0])).toMatchInlineSnapshot(`
         Object {
           "stories": Object {
-            "a--docs": Object {
-              "id": "a--docs",
+            "a--metaof": Object {
+              "id": "a--metaof",
               "importPath": "./src/docs2/MetaOf.mdx",
               "kind": "A",
-              "name": "docs",
+              "name": "MetaOf",
               "parameters": Object {
-                "__id": "a--docs",
+                "__id": "a--metaof",
                 "docsOnly": true,
                 "fileName": "./src/docs2/MetaOf.mdx",
               },
-              "standalone": true,
               "storiesImports": Array [
                 "./src/A.stories.js",
               ],
-              "story": "docs",
+              "story": "MetaOf",
+              "tags": Array [
+                "attached-mdx",
+                "docs",
+              ],
+              "title": "A",
+            },
+            "a--second-docs": Object {
+              "id": "a--second-docs",
+              "importPath": "./src/docs2/SecondMetaOf.mdx",
+              "kind": "A",
+              "name": "Second Docs",
+              "parameters": Object {
+                "__id": "a--second-docs",
+                "docsOnly": true,
+                "fileName": "./src/docs2/SecondMetaOf.mdx",
+              },
+              "storiesImports": Array [
+                "./src/A.stories.js",
+              ],
+              "story": "Second Docs",
+              "tags": Array [
+                "attached-mdx",
+                "docs",
+              ],
               "title": "A",
             },
             "a--story-one": Object {
@@ -249,6 +346,11 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/A.stories.js",
               },
               "story": "Story One",
+              "tags": Array [
+                "component-tag",
+                "story-tag",
+                "story",
+              ],
               "title": "A",
             },
             "b--story-one": Object {
@@ -262,6 +364,10 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/B.stories.ts",
               },
               "story": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
               "title": "B",
             },
             "d--story-one": Object {
@@ -275,7 +381,29 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/D.stories.jsx",
               },
               "story": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
               "title": "D",
+            },
+            "docs2-componentreference--docs": Object {
+              "id": "docs2-componentreference--docs",
+              "importPath": "./src/docs2/ComponentReference.mdx",
+              "kind": "docs2/ComponentReference",
+              "name": "docs",
+              "parameters": Object {
+                "__id": "docs2-componentreference--docs",
+                "docsOnly": true,
+                "fileName": "./src/docs2/ComponentReference.mdx",
+              },
+              "storiesImports": Array [],
+              "story": "docs",
+              "tags": Array [
+                "unattached-mdx",
+                "docs",
+              ],
+              "title": "docs2/ComponentReference",
             },
             "docs2-notitle--docs": Object {
               "id": "docs2-notitle--docs",
@@ -287,25 +415,13 @@ describe('useStoriesJson', () => {
                 "docsOnly": true,
                 "fileName": "./src/docs2/NoTitle.mdx",
               },
-              "standalone": true,
               "storiesImports": Array [],
               "story": "docs",
+              "tags": Array [
+                "unattached-mdx",
+                "docs",
+              ],
               "title": "docs2/NoTitle",
-            },
-            "docs2-template--docs": Object {
-              "id": "docs2-template--docs",
-              "importPath": "./src/docs2/Template.mdx",
-              "kind": "docs2/Template",
-              "name": "docs",
-              "parameters": Object {
-                "__id": "docs2-template--docs",
-                "docsOnly": true,
-                "fileName": "./src/docs2/Template.mdx",
-              },
-              "standalone": true,
-              "storiesImports": Array [],
-              "story": "docs",
-              "title": "docs2/Template",
             },
             "docs2-yabbadabbadooo--docs": Object {
               "id": "docs2-yabbadabbadooo--docs",
@@ -317,9 +433,12 @@ describe('useStoriesJson', () => {
                 "docsOnly": true,
                 "fileName": "./src/docs2/Title.mdx",
               },
-              "standalone": true,
               "storiesImports": Array [],
               "story": "docs",
+              "tags": Array [
+                "unattached-mdx",
+                "docs",
+              ],
               "title": "docs2/Yabbadabbadooo",
             },
             "first-nested-deeply-f--story-one": Object {
@@ -333,7 +452,27 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/first-nested/deeply/F.stories.js",
               },
               "story": "Story One",
+              "tags": Array [
+                "story",
+              ],
               "title": "first-nested/deeply/F",
+            },
+            "h--story-one": Object {
+              "id": "h--story-one",
+              "importPath": "./src/H.stories.mjs",
+              "kind": "H",
+              "name": "Story One",
+              "parameters": Object {
+                "__id": "h--story-one",
+                "docsOnly": false,
+                "fileName": "./src/H.stories.mjs",
+              },
+              "story": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
+              "title": "H",
             },
             "nested-button--story-one": Object {
               "id": "nested-button--story-one",
@@ -346,7 +485,46 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/nested/Button.stories.ts",
               },
               "story": "Story One",
+              "tags": Array [
+                "component-tag",
+                "story",
+              ],
               "title": "nested/Button",
+            },
+            "nested-page--docs": Object {
+              "id": "nested-page--docs",
+              "importPath": "./src/nested/Page.stories.mdx",
+              "kind": "nested/Page",
+              "name": "docs",
+              "parameters": Object {
+                "__id": "nested-page--docs",
+                "docsOnly": true,
+                "fileName": "./src/nested/Page.stories.mdx",
+              },
+              "storiesImports": Array [],
+              "story": "docs",
+              "tags": Array [
+                "stories-mdx",
+                "docs",
+              ],
+              "title": "nested/Page",
+            },
+            "nested-page--story-one": Object {
+              "id": "nested-page--story-one",
+              "importPath": "./src/nested/Page.stories.mdx",
+              "kind": "nested/Page",
+              "name": "StoryOne",
+              "parameters": Object {
+                "__id": "nested-page--story-one",
+                "docsOnly": false,
+                "fileName": "./src/nested/Page.stories.mdx",
+              },
+              "story": "StoryOne",
+              "tags": Array [
+                "stories-mdx",
+                "story",
+              ],
+              "title": "nested/Page",
             },
             "second-nested-g--story-one": Object {
               "id": "second-nested-g--story-one",
@@ -359,6 +537,9 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/second-nested/G.stories.ts",
               },
               "story": "Story One",
+              "tags": Array [
+                "story",
+              ],
               "title": "second-nested/G",
             },
           },
@@ -399,6 +580,11 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/A.stories.js",
               },
               "story": "Story One",
+              "tags": Array [
+                "component-tag",
+                "story-tag",
+                "story",
+              ],
               "title": "A",
             },
             "b--story-one": Object {
@@ -412,6 +598,10 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/B.stories.ts",
               },
               "story": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
               "title": "B",
             },
             "d--story-one": Object {
@@ -425,6 +615,10 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/D.stories.jsx",
               },
               "story": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
               "title": "D",
             },
             "first-nested-deeply-f--story-one": Object {
@@ -438,7 +632,27 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/first-nested/deeply/F.stories.js",
               },
               "story": "Story One",
+              "tags": Array [
+                "story",
+              ],
               "title": "first-nested/deeply/F",
+            },
+            "h--story-one": Object {
+              "id": "h--story-one",
+              "importPath": "./src/H.stories.mjs",
+              "kind": "H",
+              "name": "Story One",
+              "parameters": Object {
+                "__id": "h--story-one",
+                "docsOnly": false,
+                "fileName": "./src/H.stories.mjs",
+              },
+              "story": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
+              "title": "H",
             },
             "nested-button--story-one": Object {
               "id": "nested-button--story-one",
@@ -451,7 +665,28 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/nested/Button.stories.ts",
               },
               "story": "Story One",
+              "tags": Array [
+                "component-tag",
+                "story",
+              ],
               "title": "nested/Button",
+            },
+            "nested-page--story-one": Object {
+              "id": "nested-page--story-one",
+              "importPath": "./src/nested/Page.stories.mdx",
+              "kind": "nested/Page",
+              "name": "StoryOne",
+              "parameters": Object {
+                "__id": "nested-page--story-one",
+                "docsOnly": false,
+                "fileName": "./src/nested/Page.stories.mdx",
+              },
+              "story": "StoryOne",
+              "tags": Array [
+                "stories-mdx",
+                "story",
+              ],
+              "title": "nested/Page",
             },
             "second-nested-g--story-one": Object {
               "id": "second-nested-g--story-one",
@@ -464,6 +699,9 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/second-nested/G.stories.ts",
               },
               "story": "Story One",
+              "tags": Array [
+                "story",
+              ],
               "title": "second-nested/G",
             },
           },
@@ -490,9 +728,15 @@ describe('useStoriesJson', () => {
       await route(request, response);
 
       expect(send).toHaveBeenCalledTimes(1);
-      expect(send.mock.calls[0][0]).toEqual(
-        'You cannot use `.mdx` files without using `storyStoreV7`.'
-      );
+      expect(send.mock.calls[0][0]).toMatchInlineSnapshot(`
+        "Unable to index files:
+        - ./src/docs2/ComponentReference.mdx: Invariant failed: You cannot use \`.mdx\` files without using \`storyStoreV7\`.
+        - ./src/docs2/MetaOf.mdx: Invariant failed: You cannot use \`.mdx\` files without using \`storyStoreV7\`.
+        - ./src/docs2/NoTitle.mdx: Invariant failed: You cannot use \`.mdx\` files without using \`storyStoreV7\`.
+        - ./src/docs2/SecondMetaOf.mdx: Invariant failed: You cannot use \`.mdx\` files without using \`storyStoreV7\`.
+        - ./src/docs2/Template.mdx: Invariant failed: You cannot use \`.mdx\` files without using \`storyStoreV7\`.
+        - ./src/docs2/Title.mdx: Invariant failed: You cannot use \`.mdx\` files without using \`storyStoreV7\`."
+      `);
     });
 
     it('allows disabling storyStoreV7 if no .mdx files are used', async () => {
@@ -528,6 +772,11 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/A.stories.js",
               },
               "story": "Story One",
+              "tags": Array [
+                "component-tag",
+                "story-tag",
+                "story",
+              ],
               "title": "A",
             },
             "b--story-one": Object {
@@ -541,6 +790,10 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/B.stories.ts",
               },
               "story": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
               "title": "B",
             },
             "d--story-one": Object {
@@ -554,6 +807,10 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/D.stories.jsx",
               },
               "story": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
               "title": "D",
             },
             "first-nested-deeply-f--story-one": Object {
@@ -567,7 +824,27 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/first-nested/deeply/F.stories.js",
               },
               "story": "Story One",
+              "tags": Array [
+                "story",
+              ],
               "title": "first-nested/deeply/F",
+            },
+            "h--story-one": Object {
+              "id": "h--story-one",
+              "importPath": "./src/H.stories.mjs",
+              "kind": "H",
+              "name": "Story One",
+              "parameters": Object {
+                "__id": "h--story-one",
+                "docsOnly": false,
+                "fileName": "./src/H.stories.mjs",
+              },
+              "story": "Story One",
+              "tags": Array [
+                "autodocs",
+                "story",
+              ],
+              "title": "H",
             },
             "nested-button--story-one": Object {
               "id": "nested-button--story-one",
@@ -580,6 +857,10 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/nested/Button.stories.ts",
               },
               "story": "Story One",
+              "tags": Array [
+                "component-tag",
+                "story",
+              ],
               "title": "nested/Button",
             },
             "second-nested-g--story-one": Object {
@@ -593,6 +874,9 @@ describe('useStoriesJson', () => {
                 "fileName": "./src/second-nested/G.stories.ts",
               },
               "story": "Story One",
+              "tags": Array [
+                "story",
+              ],
               "title": "second-nested/G",
             },
           },
@@ -697,7 +981,7 @@ describe('useStoriesJson', () => {
     });
 
     it('debounces invalidation events', async () => {
-      (debounce as jest.Mock).mockImplementation(jest.requireActual('lodash/debounce'));
+      (debounce as jest.Mock).mockImplementation(jest.requireActual('lodash/debounce.js') as any);
 
       const mockServerChannel = { emit: jest.fn() } as any as ServerChannel;
       useStoriesJson({
@@ -750,7 +1034,6 @@ describe('convertToIndexV3', () => {
           storiesImports: ['./src/A.stories.js'],
           title: 'A',
           type: 'docs',
-          standalone: true,
         },
         'a--story-one': {
           id: 'a--story-one',
@@ -782,7 +1065,6 @@ describe('convertToIndexV3', () => {
               "docsOnly": true,
               "fileName": "./src/docs2/MetaOf.mdx",
             },
-            "standalone": true,
             "storiesImports": Array [
               "./src/A.stories.js",
             ],

@@ -1,9 +1,8 @@
-import type { ConcreteComponent, Component, ComponentOptions } from 'vue';
+import type { Component, ComponentOptions, ConcreteComponent } from 'vue';
 import { h } from 'vue';
-import type { DecoratorFunction, StoryContext, LegacyStoryFn } from '@storybook/csf';
-import { sanitizeStoryContextUpdate } from '@storybook/store';
-
-import type { VueFramework } from './types';
+import type { DecoratorFunction, LegacyStoryFn, StoryContext } from '@storybook/types';
+import { sanitizeStoryContextUpdate } from '@storybook/preview-api';
+import type { VueRenderer } from './types';
 
 /*
   This normalizes a functional component into a render method in ComponentOptions.
@@ -11,20 +10,20 @@ import type { VueFramework } from './types';
   The concept is taken from Vue 3's `defineComponent` but changed from creating a `setup`
   method on the ComponentOptions so end-users don't need to specify a "thunk" as a decorator.
  */
+
 function normalizeFunctionalComponent(options: ConcreteComponent): ComponentOptions {
   return typeof options === 'function' ? { render: options, name: options.name } : options;
 }
 
 function prepare(
-  rawStory: VueFramework['storyResult'],
+  rawStory: VueRenderer['storyResult'],
   innerStory?: ConcreteComponent
 ): Component | null {
   const story = rawStory as ComponentOptions;
-
-  if (story == null) {
+  if (story === null) {
     return null;
   }
-
+  if (typeof story === 'function') return story; // we don't need to wrap a functional component nor to convert it to a component options
   if (innerStory) {
     return {
       // Normalize so we can always spread an object
@@ -41,28 +40,30 @@ function prepare(
 }
 
 export function decorateStory(
-  storyFn: LegacyStoryFn<VueFramework>,
-  decorators: DecoratorFunction<VueFramework>[]
-): LegacyStoryFn<VueFramework> {
+  storyFn: LegacyStoryFn<VueRenderer>,
+  decorators: DecoratorFunction<VueRenderer>[]
+): LegacyStoryFn<VueRenderer> {
   return decorators.reduce(
-    (decorated: LegacyStoryFn<VueFramework>, decorator) => (context: StoryContext<VueFramework>) => {
-      let story: VueFramework['storyResult'];
+    (decorated: LegacyStoryFn<VueRenderer>, decorator) => (context: StoryContext<VueRenderer>) => {
+      let story: VueRenderer['storyResult'] | undefined;
 
-      const decoratedStory: VueFramework['storyResult'] = decorator((update) => {
-        story = decorated({ ...context, ...sanitizeStoryContextUpdate(update) });
+      const decoratedStory: VueRenderer['storyResult'] = decorator((update) => {
+        const sanitizedUpdate = sanitizeStoryContextUpdate(update);
+        // update the args in a reactive way
+        if (update) sanitizedUpdate.args = Object.assign(context.args, sanitizedUpdate.args);
+        story = decorated({ ...context, ...sanitizedUpdate });
         return story;
       }, context);
 
-      if (!story) {
-        story = decorated(context);
-      }
+      if (!story) story = decorated(context);
 
       if (decoratedStory === story) {
         return story;
       }
 
-      return prepare(decoratedStory, story) as VueFramework['storyResult'];
+      const innerStory = () => h(story!);
+      return prepare(decoratedStory, innerStory) as VueRenderer['storyResult'];
     },
-    (context) => prepare(storyFn(context)) as LegacyStoryFn<VueFramework>
+    (context) => prepare(storyFn(context)) as LegacyStoryFn<VueRenderer>
   );
 }

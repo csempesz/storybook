@@ -5,7 +5,7 @@ import { createButton } from './Button';
 
 export default {
   /* 👇 The title prop is optional.
-   * See https://storybook.js.org/docs/html/configure/overview#configure-story-loading
+   * See https://storybook.js.org/docs/configure/#configure-story-loading
    * to learn how to generate automatic titles
    */
   title: 'Button',
@@ -13,13 +13,13 @@ export default {
 
 /*
  *👇 Render functions are a framework specific feature to allow you control on how the component renders.
- * See https://storybook.js.org/docs/7.0/html/api/csf
+ * See https://storybook.js.org/docs/api/csf
  * to learn how to use render functions.
  */
 export const Primary = {
   render: (args) => createButton(args),
   args: {
-    primary: true, 
+    primary: true,
     label: 'Button',
   },
 };
@@ -27,7 +27,7 @@ export const Primary = {
 export const Secondary = {
   render: (args) => createButton(args),
   args: {
-    ...Primary.args, 
+    ...Primary.args,
     label: '😄👍😍💯',
   },
 };
@@ -35,7 +35,7 @@ export const Secondary = {
 export const Tertiary = {
   render: (args) => createButton(args),
   args: {
-    ...Primary.args, 
+    ...Primary.args,
     label: '📚📕📈🤓',
   },
 };

@@ -1,20 +1,20 @@
 {
   "name": "@storybook/addon-interactions",
-  "version": "7.0.0-alpha.38",
+  "version": "8.0.0-alpha.0",
   "description": "Automate, test and debug user interactions",
   "keywords": [
     "storybook-addons",
     "data-state",
     "test"
   ],
-  "homepage": "https://github.com/storybookjs/storybook/tree/main/addons/interactions",
+  "homepage": "https://github.com/storybookjs/storybook/tree/next/code/addons/interactions",
   "bugs": {
     "url": "https://github.com/storybookjs/storybook/issues"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/storybookjs/storybook.git",
-    "directory": "addons/interactions"
+    "directory": "code/addons/interactions"
   },
   "funding": {
     "type": "opencollective",
@@ -23,25 +23,14 @@
   "license": "MIT",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
+      "node": "./dist/index.js",
       "require": "./dist/index.js",
-      "import": "./dist/index.mjs",
-      "types": "./dist/index.d.ts"
+      "import": "./dist/index.mjs"
     },
-    "./manager": {
-      "require": "./dist/manager.js",
-      "import": "./dist/manager.mjs",
-      "types": "./dist/manager.d.ts"
-    },
-    "./preview": {
-      "require": "./dist/preset/preview.js",
-      "import": "./dist/preset/preview.mjs",
-      "types": "./dist/preset/preview.d.ts"
-    },
-    "./register.js": {
-      "require": "./dist/manager.js",
-      "import": "./dist/manager.mjs",
-      "types": "./dist/manager.d.ts"
-    },
+    "./manager": "./dist/manager.js",
+    "./preview": "./dist/preview.js",
+    "./register.js": "./dist/manager.js",
     "./package.json": "./package.json"
   },
   "main": "dist/index.js",
@@ -51,60 +40,57 @@
     "dist/**/*",
     "README.md",
     "*.js",
-    "*.d.ts"
+    "*.d.ts",
+    "!src/**/*"
   ],
   "scripts": {
-    "check": "../../../scripts/node_modules/.bin/tsc --noEmit",
-    "prep": "../../../scripts/prepare/bundle.ts"
+    "check": "node --loader ../../../scripts/node_modules/esbuild-register/loader.js -r ../../../scripts/node_modules/esbuild-register/register.js ../../../scripts/prepare/check.ts",
+    "prep": "node --loader ../../../scripts/node_modules/esbuild-register/loader.js -r ../../../scripts/node_modules/esbuild-register/register.js ../../../scripts/prepare/addon-bundle.ts"
   },
   "dependencies": {
-    "@devtools-ds/object-inspector": "^1.1.2",
-    "@storybook/addons": "7.0.0-alpha.38",
-    "@storybook/api": "7.0.0-alpha.38",
-    "@storybook/client-logger": "7.0.0-alpha.38",
-    "@storybook/components": "7.0.0-alpha.38",
-    "@storybook/core-common": "7.0.0-alpha.38",
-    "@storybook/core-events": "7.0.0-alpha.38",
-    "@storybook/csf": "0.0.2--canary.49.258942b.0",
-    "@storybook/instrumenter": "7.0.0-alpha.38",
-    "@storybook/theming": "7.0.0-alpha.38",
-    "global": "^4.4.0",
+    "@storybook/global": "^5.0.0",
+    "@storybook/icons": "^1.2.1",
+    "@storybook/types": "workspace:*",
     "jest-mock": "^27.0.6",
     "polished": "^4.2.2",
     "ts-dedent": "^2.2.0"
   },
   "devDependencies": {
-    "@storybook/jest": "^0.0.10",
-    "@storybook/testing-library": "0.0.14-next.0",
-    "@types/node": "^16.0.0",
+    "@devtools-ds/object-inspector": "^1.1.2",
+    "@storybook/client-logger": "workspace:*",
+    "@storybook/components": "workspace:*",
+    "@storybook/core-common": "workspace:*",
+    "@storybook/core-events": "workspace:*",
+    "@storybook/instrumenter": "workspace:*",
+    "@storybook/jest": "next",
+    "@storybook/manager-api": "workspace:*",
+    "@storybook/preview-api": "workspace:*",
+    "@storybook/testing-library": "next",
+    "@storybook/theming": "workspace:*",
+    "@types/node": "^18.0.0",
     "formik": "^2.2.9",
-    "typescript": "~4.6.3"
-  },
-  "peerDependencies": {
-    "react": "^16.8.0 || ^17.0.0 || ^18.0.0",
-    "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    }
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.3.2"
   },
   "publishConfig": {
     "access": "public"
   },
   "bundler": {
-    "entries": [
-      "./src/index.ts",
-      "./src/manager.tsx",
-      "./src/preset/preview.ts",
-      "./src/preset/checkActionsLoaded.ts"
+    "exportEntries": [
+      "./src/index.ts"
     ],
-    "platform": "node"
+    "managerEntries": [
+      "./src/manager.tsx"
+    ],
+    "previewEntries": [
+      "./src/preview.ts"
+    ],
+    "nodeEntries": [
+      "./src/preset.ts"
+    ]
   },
-  "gitHead": "438114fcf62a763f0e8c07e2c34890dd987ca431",
+  "gitHead": "e6a7fd8a655c69780bc20b9749c2699e44beae17",
   "storybook": {
     "displayName": "Interactions",
     "unsupportedFrameworks": [

@@ -1,27 +1,33 @@
 import React from 'react';
-import type { StoriesHash } from '@storybook/api';
+import type { StoriesHash } from '@storybook/manager-api';
 
 import { mockDataset } from './mockdata';
 import { SearchResults } from './SearchResults';
-import { CombinedDataset, Refs, SearchItem } from './types';
-import { searchItem } from './utils';
+import type { CombinedDataset, Refs, SearchItem } from './types';
+import { searchItem } from '../../utils/tree';
+import { IconSymbols } from './IconSymbols';
 
 export default {
   component: SearchResults,
-  title: 'UI/Sidebar/SearchResults',
+  title: 'Sidebar/SearchResults',
   includeStories: /^[A-Z]/,
   parameters: { layout: 'fullscreen' },
   decorators: [
-    (storyFn: any) => <div style={{ padding: '0 20px', maxWidth: '230px' }}>{storyFn()}</div>,
+    (storyFn: any) => (
+      <div style={{ padding: '0 20px', maxWidth: '230px' }}>
+        <IconSymbols />
+        {storyFn()}
+      </div>
+    ),
   ],
 };
 
 const combinedDataset = (refs: Record<string, StoriesHash>): CombinedDataset => {
   const hash: Refs = Object.entries(refs).reduce(
-    (acc, [refId, stories]) =>
+    (acc, [refId, index]) =>
       Object.assign(acc, {
         [refId]: {
-          stories,
+          index,
           title: null,
           id: refId,
           url: 'iframe.html',
@@ -34,12 +40,13 @@ const combinedDataset = (refs: Record<string, StoriesHash>): CombinedDataset => 
   return { hash, entries: Object.entries(hash) };
 };
 
+// @ts-expect-error (invalid input)
 const dataset = combinedDataset({ internal: mockDataset.withRoot, composed: mockDataset.noRoot });
 
-const internal = Object.values(dataset.hash.internal.stories).map((item) =>
+const internal = Object.values(dataset.hash.internal.index).map((item) =>
   searchItem(item, dataset.hash.internal)
 );
-const composed = Object.values(dataset.hash.composed.stories).map((item) =>
+const composed = Object.values(dataset.hash.composed.index).map((item) =>
   searchItem(item, dataset.hash.composed)
 );
 const stories: SearchItem[] = internal.concat(composed);

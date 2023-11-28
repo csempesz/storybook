@@ -1,3 +1,7 @@
+import path from 'path';
+import { logger } from '@storybook/node-logger';
+import './presets';
+
 function wrapPreset(basePresets: any): { babel: Function; webpack: Function } {
   return {
     babel: async (config: any, args: any) => basePresets.apply('babel', config, args),
@@ -96,6 +100,12 @@ describe('presets', () => {
     }
 
     await expect(testPresets()).resolves.toBeUndefined();
+  });
+
+  it('throws when preset can not be loaded and is critical', async () => {
+    const { getPresets } = jest.requireActual('./presets');
+
+    await expect(getPresets(['preset-foo'], { isCritical: true })).rejects.toThrow();
   });
 
   it('loads and applies presets when they are combined in another preset', async () => {
@@ -407,7 +417,7 @@ describe('resolveAddonName', () => {
   it('should resolve managerEntries', () => {
     expect(resolveAddonName({}, '@storybook/addon-actions/register')).toEqual({
       name: '@storybook/addon-actions/register',
-      managerEntries: ['@storybook/addon-actions/register'],
+      managerEntries: [path.normalize('@storybook/addon-actions/register')],
       type: 'virtual',
     });
   });
@@ -415,7 +425,7 @@ describe('resolveAddonName', () => {
   it('should resolve managerEntries from new /manager path', () => {
     expect(resolveAddonName({}, '@storybook/addon-actions/manager')).toEqual({
       name: '@storybook/addon-actions/manager',
-      managerEntries: ['@storybook/addon-actions/manager'],
+      managerEntries: [path.normalize('@storybook/addon-actions/manager')],
       type: 'virtual',
     });
   });
@@ -455,6 +465,10 @@ describe('loadPreset', () => {
   mockPreset('@storybook/addon-notes/register-panel', {});
 
   const { loadPreset } = jest.requireActual('./presets');
+
+  beforeEach(() => {
+    jest.spyOn(logger, 'warn');
+  });
 
   it('should prepend framework field to list of presets', async () => {
     const loaded = await loadPreset(
@@ -534,14 +548,14 @@ describe('loadPreset', () => {
         name: '@storybook/addon-actions/register',
         options: {},
         preset: {
-          managerEntries: ['@storybook/addon-actions/register'],
+          managerEntries: [path.normalize('@storybook/addon-actions/register')],
         },
       },
       {
         name: 'addon-foo/register.js',
         options: {},
         preset: {
-          managerEntries: ['addon-foo/register.js'],
+          managerEntries: [path.normalize('addon-foo/register')],
         },
       },
       {
@@ -563,14 +577,14 @@ describe('loadPreset', () => {
         name: 'addon-baz/register.js',
         options: {},
         preset: {
-          managerEntries: ['addon-baz/register.js'],
+          managerEntries: [path.normalize('addon-baz/register')],
         },
       },
       {
         name: '@storybook/addon-notes/register-panel',
         options: {},
         preset: {
-          managerEntries: ['@storybook/addon-notes/register-panel'],
+          managerEntries: [path.normalize('@storybook/addon-notes/register-panel')],
         },
       },
       {
@@ -591,5 +605,118 @@ describe('loadPreset', () => {
         preset: {},
       },
     ]);
+  });
+
+  it('should warn for addons that are not installed', async () => {
+    const loaded = await loadPreset(
+      {
+        name: '',
+        type: 'virtual',
+        framework: '@storybook/react',
+        presets: ['@storybook/preset-typescript'],
+        addons: ['@storybook/addon-docs/preset', 'uninstalled-addon'],
+      },
+      0,
+      {}
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Could not resolve addon "uninstalled-addon", skipping. Is it installed?'
+    );
+    expect(loaded).toMatchInlineSnapshot(`
+      Array [
+        Object {
+          "name": "@storybook/preset-typescript",
+          "options": Object {},
+          "preset": Object {},
+        },
+        Object {
+          "name": "@storybook/addon-docs/preset",
+          "options": Object {},
+          "preset": Object {},
+        },
+        Object {
+          "name": Object {
+            "addons": Array [
+              "@storybook/addon-docs/preset",
+              "uninstalled-addon",
+            ],
+            "framework": "@storybook/react",
+            "name": "",
+            "presets": Array [
+              "@storybook/preset-typescript",
+            ],
+            "type": "virtual",
+          },
+          "options": Object {},
+          "preset": Object {
+            "framework": "@storybook/react",
+          },
+        },
+      ]
+    `);
+  });
+
+  it('should filter out disabledAddons', async () => {
+    const loaded = await loadPreset(
+      {
+        name: '',
+        type: 'virtual',
+        framework: '@storybook/react',
+        presets: ['@storybook/preset-typescript'],
+        addons: ['@storybook/addon-docs', 'addon-bar'],
+      },
+      0,
+      {
+        build: {
+          test: {
+            disabledAddons: ['@storybook/addon-docs'],
+          },
+        },
+      }
+    );
+
+    // addon-docs should not be at the top level, but addon-bar and others should be.
+    expect(loaded).toMatchInlineSnapshot(`
+      Array [
+        Object {
+          "name": "@storybook/preset-typescript",
+          "options": Object {},
+          "preset": Object {},
+        },
+        Object {
+          "name": "@storybook/addon-interactions/preset",
+          "options": Object {},
+          "preset": Object {},
+        },
+        Object {
+          "name": "@storybook/addon-cool",
+          "options": Object {},
+          "preset": Object {},
+        },
+        Object {
+          "name": "addon-bar",
+          "options": Object {},
+          "preset": Object {},
+        },
+        Object {
+          "name": Object {
+            "addons": Array [
+              "@storybook/addon-docs",
+              "addon-bar",
+            ],
+            "framework": "@storybook/react",
+            "name": "",
+            "presets": Array [
+              "@storybook/preset-typescript",
+            ],
+            "type": "virtual",
+          },
+          "options": Object {},
+          "preset": Object {
+            "framework": "@storybook/react",
+          },
+        },
+      ]
+    `);
   });
 });

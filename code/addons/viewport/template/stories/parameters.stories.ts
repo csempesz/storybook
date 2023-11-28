@@ -1,4 +1,4 @@
-import globalThis from 'global';
+import { global as globalThis } from '@storybook/global';
 import { MINIMAL_VIEWPORTS } from '@storybook/addon-viewport';
 
 export default {
@@ -22,6 +22,15 @@ export const Selected = {
   parameters: {
     viewport: {
       defaultViewport: Object.keys(MINIMAL_VIEWPORTS)[0],
+    },
+  },
+};
+
+export const Orientation = {
+  parameters: {
+    viewport: {
+      defaultViewport: Object.keys(MINIMAL_VIEWPORTS)[0],
+      defaultOrientation: 'landscape',
     },
   },
 };

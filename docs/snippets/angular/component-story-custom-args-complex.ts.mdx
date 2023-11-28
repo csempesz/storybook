@@ -1,16 +1,11 @@
 ```ts
 // YourComponent.stories.ts
 
-import type { Meta, Story } from '@storybook/angular';
+import type { Meta, StoryObj } from '@storybook/angular';
 
 import { YourComponent } from './your-component.component';
 
-export default {
-  /* 👇 The title prop is optional.
-   * See https://storybook.js.org/docs/7.0/angular/configure/overview#configure-story-loading
-   * to learn how to generate automatic titles
-   */
-  title: 'YourComponent',
+const meta: Meta<YourComponent> = {
   component: YourComponent,
   //👇 Creates specific argTypes with options
   argTypes: {
@@ -22,18 +17,15 @@ export default {
       options: ['Another Item One', 'Another Item Two', 'Another Item Three'],
     },
   },
-} as Meta;
-
-//👇 Some function to demonstrate the behavior
-const someFunction = (valuePropertyA: String, valuePropertyB: String) => {
-  // Makes some computations and returns something
 };
 
-/*
- *👇 Render functions are a framework specific feature to allow you control on how the component renders.
- * See https://storybook.js.org/docs/7.0/angular/api/csf
- * to learn how to use render functions.
- */
+export default meta;
+type Story = StoryObj<YourComponent>;
+
+const someFunction = (valuePropertyA: String, valuePropertyB: String) => {
+  // Do some logic here
+};
+
 export const ExampleStory: Story = {
   render: (args) => {
     const { propertyA, propertyB } = args;

@@ -4,8 +4,8 @@
     "rootDir": "./src",
     "types": ["node"],
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "strict": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.*", "src/**/__testfixtures__/**"]
+  "include": ["src/**/*"]
 }

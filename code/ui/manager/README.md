@@ -1,6 +1,6 @@
-<h1>Storybook UI</h1>
+<h1>Storybook manager's UI</h1>
 
-Storybook UI the core UI of [Storybook](https://storybook.js.org).
+Storybook manager is the core UI of [Storybook](https://storybook.js.org).
 It's a React based UI which you can initialize with a function.
 You can configure it by providing a provider API.
 
@@ -25,17 +25,17 @@ You can configure it by providing a provider API.
 
 ## Usage
 
-First you need to install `@storybook/ui` into your app.
+First you need to install `@storybook/manager` into your app.
 
 ```sh
-yarn add @storybook/ui --dev
+yarn add @storybook/manager --dev
 ```
 
 Then you need to create a Provider class like this:
 
 ```js
 import React from 'react';
-import { Provider } from '@storybook/ui';
+import { Provider } from '@storybook/manager';
 
 export default class MyProvider extends Provider {
   getElements(type) {
@@ -56,7 +56,7 @@ Then you need to initialize the UI like this:
 
 ```js
 import global from 'global';
-import { renderStorybookUI } from '@storybook/ui';
+import { renderStorybookUI } from '@storybook/manager';
 import Provider from './provider';
 
 const { document } = global;
@@ -70,7 +70,7 @@ renderStorybookUI(roolEl, new Provider());
 ### .setOptions()
 
 ```js
-import { Provider } from '@storybook/ui';
+import { Provider } from '@storybook/manager';
 
 class ReactProvider extends Provider {
   handleAPI(api) {
@@ -87,7 +87,7 @@ class ReactProvider extends Provider {
 This API is used to pass the`kind` and `stories` list to storybook-ui.
 
 ```js
-import { Provider } from '@storybook/ui';
+import { Provider } from '@storybook/manager';
 
 class ReactProvider extends Provider {
   handleAPI(api) {
@@ -111,7 +111,7 @@ class ReactProvider extends Provider {
 You can use to listen to the story change and update the preview.
 
 ```js
-import { Provider } from '@storybook/ui';
+import { Provider } from '@storybook/manager';
 
 class ReactProvider extends Provider {
   handleAPI(api) {

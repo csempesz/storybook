@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { themes, convert } from '@storybook/theming';
-import { Result } from 'axe-core';
-import { useChannel, useAddonState, useStorybookApi } from '@storybook/api';
+import type { Result } from 'axe-core';
+import { useChannel, useAddonState, useStorybookApi } from '@storybook/manager-api';
 import { STORY_CHANGED, STORY_RENDERED } from '@storybook/core-events';
 import { HIGHLIGHT } from '@storybook/addon-highlight';
 import { ADDON_ID, EVENTS } from '../constants';
@@ -52,7 +52,10 @@ const defaultResult = {
   violations: [],
 };
 
-export const A11yContextProvider: React.FC<A11yContextProviderProps> = ({ active, ...props }) => {
+export const A11yContextProvider: React.FC<React.PropsWithChildren<A11yContextProviderProps>> = ({
+  active,
+  ...props
+}) => {
   const [results, setResults] = useAddonState<Results>(ADDON_ID, defaultResult);
   const [tab, setTab] = React.useState(0);
   const [highlighted, setHighlighted] = React.useState<string[]>([]);

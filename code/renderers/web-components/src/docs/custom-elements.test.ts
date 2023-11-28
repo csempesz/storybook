@@ -1,15 +1,7 @@
 /* eslint-disable no-underscore-dangle */
-// @ts-expect-error (Converted from ts-ignore)
-import global from 'global';
-
+import { global } from '@storybook/global';
 import { extractArgTypes } from './custom-elements';
 import customElementsManifest from './__testfixtures__/custom-elements.json';
-
-declare global {
-  interface Window {
-    __STORYBOOK_CUSTOM_ELEMENTS_MANIFEST__: any;
-  }
-}
 
 const { window } = global;
 
@@ -24,9 +16,9 @@ describe('extractArgTypes', () => {
 
   describe('events', () => {
     it('should map to an action event handler', () => {
-      const { onSbHeaderCreateAccount } = extractArgTypes('sb-header');
+      const extractedArgType = extractArgTypes('sb-header');
 
-      expect(onSbHeaderCreateAccount).toEqual({
+      expect(extractedArgType?.onSbHeaderCreateAccount).toEqual({
         name: 'onSbHeaderCreateAccount',
         action: { name: 'sb-header:createAccount' },
         table: { disable: true },
@@ -34,9 +26,9 @@ describe('extractArgTypes', () => {
     });
 
     it('should map to a regular item', () => {
-      const { 'sb-header:createAccount': item } = extractArgTypes('sb-header');
+      const extractedArgType = extractArgTypes('sb-header');
 
-      expect(item).toEqual({
+      expect(extractedArgType?.['sb-header:createAccount']).toEqual({
         name: 'sb-header:createAccount',
         required: false,
         description: 'Event send when user clicks on create account button',

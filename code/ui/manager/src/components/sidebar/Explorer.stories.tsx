@@ -2,16 +2,22 @@ import React from 'react';
 
 import { Explorer } from './Explorer';
 import { mockDataset } from './mockdata';
-import { RefType } from './types';
+import type { RefType } from './types';
 import * as RefStories from './Refs.stories';
+import { IconSymbols } from './IconSymbols';
 
 export default {
   component: Explorer,
-  title: 'UI/Sidebar/Explorer',
-  parameters: { layout: 'fullscreen' },
+  title: 'Sidebar/Explorer',
+  parameters: { layout: 'fullscreen', theme: 'side-by-side' },
   decorators: [
     RefStories.default.decorators[0],
-    (storyFn: any) => <div style={{ padding: '0 20px', maxWidth: '230px' }}>{storyFn()}</div>,
+    (storyFn: any) => (
+      <div style={{ padding: '0 20px', maxWidth: '230px' }}>
+        <IconSymbols />
+        {storyFn()}
+      </div>
+    ),
   ],
 };
 
@@ -25,8 +31,9 @@ const simple: Record<string, RefType> = {
     title: undefined,
     id: 'storybook_internal',
     url: 'iframe.html',
-    ready: true,
-    stories: mockDataset.withRoot,
+    previewInitialized: true,
+    // @ts-expect-error (invalid input)
+    index: mockDataset.withRoot,
   },
 };
 
@@ -36,33 +43,37 @@ const withRefs: Record<string, RefType> = {
     id: 'basic',
     title: 'Basic ref',
     url: 'https://example.com',
-    ready: true,
+    previewInitialized: true,
     type: 'auto-inject',
-    stories: mockDataset.noRoot,
+    // @ts-expect-error (invalid input)
+    index: mockDataset.noRoot,
   },
   injected: {
     id: 'injected',
     title: 'Not ready',
     url: 'https://example.com',
-    ready: false,
+    previewInitialized: false,
     type: 'auto-inject',
-    stories: mockDataset.noRoot,
+    // @ts-expect-error (invalid input)
+    index: mockDataset.noRoot,
   },
   unknown: {
     id: 'unknown',
     title: 'Unknown ref',
     url: 'https://example.com',
-    ready: true,
+    previewInitialized: true,
     type: 'unknown',
-    stories: mockDataset.noRoot,
+    // @ts-expect-error (invalid input)
+    index: mockDataset.noRoot,
   },
   lazy: {
     id: 'lazy',
     title: 'Lazy loaded ref',
     url: 'https://example.com',
-    ready: false,
+    previewInitialized: false,
     type: 'lazy',
-    stories: mockDataset.withRoot,
+    // @ts-expect-error (invalid input)
+    index: mockDataset.withRoot,
   },
 };
 

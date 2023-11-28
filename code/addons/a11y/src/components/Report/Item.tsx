@@ -3,11 +3,13 @@ import React, { Fragment, useState } from 'react';
 import { styled } from '@storybook/theming';
 import { Icons } from '@storybook/components';
 
-import { Result } from 'axe-core';
+import type { Result } from 'axe-core';
 import { Info } from './Info';
+
 import { Elements } from './Elements';
 import { Tags } from './Tags';
-import { RuleType } from '../A11YPanel';
+
+import type { RuleType } from '../A11YPanel';
 import HighlightToggle from './HighlightToggle';
 
 const Wrapper = styled.div(({ theme }) => ({
@@ -19,16 +21,14 @@ const Wrapper = styled.div(({ theme }) => ({
   },
 }));
 
-const Icon = styled(Icons)(({ theme }) => ({
+const Icon = styled(Icons)({
   height: 10,
   width: 10,
   minWidth: 10,
-  color: theme.textMutedColor,
   marginRight: 10,
   transition: 'transform 0.1s ease-in-out',
-  alignSelf: 'center',
-  display: 'inline-flex',
-}));
+  verticalAlign: 'inherit',
+});
 
 const HeaderBar = styled.div(({ theme }) => ({
   padding: theme.layoutMargin,
@@ -76,7 +76,6 @@ export const Item = (props: ItemProps) => {
         <HeaderBar onClick={() => onToggle(!open)} role="button">
           <Icon
             icon="arrowdown"
-            color="#9DA5AB"
             style={{
               transform: `rotate(${open ? 0 : -90}deg)`,
             }}

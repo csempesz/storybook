@@ -1,16 +1,18 @@
 import chalk from 'chalk';
 import { dedent } from 'ts-dedent';
-import { ConfigFile, readConfig, writeConfig } from '@storybook/csf-tools';
-import { getStorybookInfo } from '@storybook/core-common';
 
-import { findEslintFile, SUPPORTED_ESLINT_EXTENSIONS } from '../helpers/getEslintInfo';
+import {
+  configureEslintPlugin,
+  extractEslintInfo,
+  findEslintFile,
+  SUPPORTED_ESLINT_EXTENSIONS,
+} from '../helpers/eslintPlugin';
 
 import type { Fix } from '../types';
 
 const logger = console;
 
 interface EslintPluginRunOptions {
-  main: ConfigFile;
   eslintFile: string;
   unsupportedExtension?: string;
 }
@@ -25,21 +27,9 @@ export const eslintPlugin: Fix<EslintPluginRunOptions> = {
   id: 'eslintPlugin',
 
   async check({ packageManager }) {
-    const packageJson = packageManager.retrievePackageJson();
-    const { dependencies, devDependencies } = packageJson;
+    const { hasEslint, isStorybookPluginInstalled } = await extractEslintInfo(packageManager);
 
-    const eslintPluginStorybook =
-      dependencies['eslint-plugin-storybook'] || devDependencies['eslint-plugin-storybook'];
-    const eslintDependency = dependencies.eslint || devDependencies.eslint;
-
-    if (eslintPluginStorybook || !eslintDependency) {
-      return null;
-    }
-
-    const { mainConfig } = getStorybookInfo(packageJson);
-
-    if (!mainConfig) {
-      logger.warn('Unable to find storybook main.js config, skipping');
+    if (isStorybookPluginInstalled || !hasEslint) {
       return null;
     }
 
@@ -56,10 +46,7 @@ export const eslintPlugin: Fix<EslintPluginRunOptions> = {
       return null;
     }
 
-    // If in the future the eslint plugin has a framework option, using main to extract the framework field will be very useful
-    const main = await readConfig(mainConfig);
-
-    return { eslintFile, main, unsupportedExtension };
+    return { eslintFile, unsupportedExtension };
   },
 
   prompt() {
@@ -72,33 +59,30 @@ export const eslintPlugin: Fix<EslintPluginRunOptions> = {
     `;
   },
 
-  async run({ result: { eslintFile, unsupportedExtension }, packageManager, dryRun }) {
+  async run({ result: { eslintFile, unsupportedExtension }, packageManager, dryRun, skipInstall }) {
     const deps = [`eslint-plugin-storybook`];
 
     logger.info(`✅ Adding dependencies: ${deps}`);
-    if (!dryRun) packageManager.addDependencies({ installAsDevDependencies: true }, deps);
+    if (!dryRun) {
+      await packageManager.addDependencies({ installAsDevDependencies: true, skipInstall }, deps);
+    }
 
     if (!dryRun && unsupportedExtension) {
-      throw new Error(dedent`
-          ⚠️ The plugin was successfuly installed but failed to configure.
+      logger.info(dedent`
+          ⚠️ The plugin was successfully installed but failed to configure.
           
-          Found an .eslintrc config file with an unsupported automigration format: ${unsupportedExtension}.
-          Supported formats for automigration are: ${SUPPORTED_ESLINT_EXTENSIONS.join(', ')}.
+          Found an eslint config file with an unsupported automigration format: .eslintrc.${unsupportedExtension}.
+          The supported formats for this automigration are: ${SUPPORTED_ESLINT_EXTENSIONS.join(
+            ', '
+          )}.
 
           Please refer to https://github.com/storybookjs/eslint-plugin-storybook#usage to finish setting up the plugin manually.
       `);
+      return;
     }
 
-    const eslint = await readConfig(eslintFile);
-    logger.info(`✅ Configuring eslint rules in ${eslint.fileName}`);
-
     if (!dryRun) {
-      logger.info(`✅ Adding Storybook to extends list`);
-      const extendsConfig = eslint.getFieldValue(['extends']) || [];
-      const existingConfigValue = Array.isArray(extendsConfig) ? extendsConfig : [extendsConfig];
-      eslint.setFieldValue(['extends'], [...existingConfigValue, 'plugin:storybook/recommended']);
-
-      await writeConfig(eslint);
+      await configureEslintPlugin(eslintFile, packageManager);
     }
   },
 };

@@ -1,4 +1,4 @@
-import { validRange, minVersion } from 'semver';
+import { minVersion, validRange } from 'semver';
 
 function ltMajor(versionRange: string, major: number) {
   // Uses validRange to avoid a throw from minVersion if an invalid range gets passed
@@ -10,6 +10,22 @@ function eqMajor(versionRange: string, major: number) {
   return validRange(versionRange) && minVersion(versionRange).major === major;
 }
 
+/** A list of all frameworks that are supported, but use a package outside the storybook monorepo */
+export type ExternalFramework = {
+  name: SupportedFrameworks;
+  packageName?: string;
+  frameworks?: string[];
+  renderer?: string;
+};
+
+export const externalFrameworks: ExternalFramework[] = [
+  { name: 'qwik', packageName: 'storybook-framework-qwik' },
+  { name: 'solid', frameworks: ['storybook-solidjs-vite'], renderer: 'storybook-solidjs' },
+];
+
+// Should match @storybook/<framework>
+export type SupportedFrameworks = 'nextjs' | 'angular' | 'sveltekit' | 'qwik' | 'solid';
+
 // Should match @storybook/<renderer>
 export type SupportedRenderers =
   | 'react'
@@ -17,18 +33,14 @@ export type SupportedRenderers =
   | 'vue'
   | 'vue3'
   | 'angular'
-  | 'mithril'
-  | 'riot'
   | 'ember'
-  | 'marionette'
-  | 'marko'
   | 'preact'
   | 'svelte'
-  | 'rax'
-  | 'aurelia'
+  | 'qwik'
   | 'html'
   | 'web-components'
-  | 'server';
+  | 'server'
+  | 'solid';
 
 export const SUPPORTED_RENDERERS: SupportedRenderers[] = [
   'react',
@@ -36,42 +48,36 @@ export const SUPPORTED_RENDERERS: SupportedRenderers[] = [
   'vue',
   'vue3',
   'angular',
-  'mithril',
-  'riot',
   'ember',
-  'marionette',
-  'marko',
   'preact',
   'svelte',
-  'rax',
-  'aurelia',
+  'qwik',
+  'solid',
 ];
 
 export enum ProjectType {
   UNDETECTED = 'UNDETECTED',
   UNSUPPORTED = 'UNSUPPORTED',
-  REACT_SCRIPTS = 'REACT_SCRIPTS',
   REACT = 'REACT',
+  REACT_SCRIPTS = 'REACT_SCRIPTS',
   REACT_NATIVE = 'REACT_NATIVE',
   REACT_PROJECT = 'REACT_PROJECT',
   WEBPACK_REACT = 'WEBPACK_REACT',
+  NEXTJS = 'NEXTJS',
   VUE = 'VUE',
   VUE3 = 'VUE3',
   SFC_VUE = 'SFC_VUE',
   ANGULAR = 'ANGULAR',
   EMBER = 'EMBER',
-  ALREADY_HAS_STORYBOOK = 'ALREADY_HAS_STORYBOOK',
   WEB_COMPONENTS = 'WEB_COMPONENTS',
-  MITHRIL = 'MITHRIL',
-  MARIONETTE = 'MARIONETTE',
-  MARKO = 'MARKO',
   HTML = 'HTML',
-  RIOT = 'RIOT',
+  QWIK = 'QWIK',
   PREACT = 'PREACT',
   SVELTE = 'SVELTE',
-  RAX = 'RAX',
-  AURELIA = 'AURELIA',
+  SVELTEKIT = 'SVELTEKIT',
   SERVER = 'SERVER',
+  NX = 'NX',
+  SOLID = 'SOLID',
 }
 
 export enum CoreBuilder {
@@ -84,7 +90,8 @@ export type Builder = CoreBuilder | (string & {});
 
 export enum SupportedLanguage {
   JAVASCRIPT = 'javascript',
-  TYPESCRIPT = 'typescript',
+  TYPESCRIPT_3_8 = 'typescript-3-8',
+  TYPESCRIPT_4_9 = 'typescript-4-9',
 }
 
 export type TemplateMatcher = {
@@ -149,6 +156,20 @@ export const supportedTemplates: TemplateConfiguration[] = [
     },
   },
   {
+    preset: ProjectType.NEXTJS,
+    dependencies: ['next'],
+    matcherFunction: ({ dependencies }) => {
+      return dependencies.every(Boolean);
+    },
+  },
+  {
+    preset: ProjectType.QWIK,
+    dependencies: ['@builder.io/qwik'],
+    matcherFunction: ({ dependencies }) => {
+      return dependencies.every(Boolean);
+    },
+  },
+  {
     preset: ProjectType.REACT_PROJECT,
     peerDependencies: ['react'],
     matcherFunction: ({ peerDependencies }) => {
@@ -173,20 +194,6 @@ export const supportedTemplates: TemplateConfiguration[] = [
     },
   },
   {
-    preset: ProjectType.WEBPACK_REACT,
-    dependencies: ['react', 'webpack'],
-    matcherFunction: ({ dependencies }) => {
-      return dependencies.every(Boolean);
-    },
-  },
-  {
-    preset: ProjectType.REACT,
-    dependencies: ['react'],
-    matcherFunction: ({ dependencies }) => {
-      return dependencies.every(Boolean);
-    },
-  },
-  {
     preset: ProjectType.ANGULAR,
     dependencies: ['@angular/core'],
     matcherFunction: ({ dependencies }) => {
@@ -201,36 +208,16 @@ export const supportedTemplates: TemplateConfiguration[] = [
     },
   },
   {
-    preset: ProjectType.MITHRIL,
-    dependencies: ['mithril'],
-    matcherFunction: ({ dependencies }) => {
-      return dependencies.every(Boolean);
-    },
-  },
-  {
-    preset: ProjectType.MARIONETTE,
-    dependencies: ['backbone.marionette'],
-    matcherFunction: ({ dependencies }) => {
-      return dependencies.every(Boolean);
-    },
-  },
-  {
-    preset: ProjectType.MARKO,
-    dependencies: ['marko'],
-    matcherFunction: ({ dependencies }) => {
-      return dependencies.every(Boolean);
-    },
-  },
-  {
-    preset: ProjectType.RIOT,
-    dependencies: ['riot'],
-    matcherFunction: ({ dependencies }) => {
-      return dependencies.every(Boolean);
-    },
-  },
-  {
     preset: ProjectType.PREACT,
     dependencies: ['preact'],
+    matcherFunction: ({ dependencies }) => {
+      return dependencies.every(Boolean);
+    },
+  },
+  {
+    // TODO: This only works because it is before the SVELTE template. could be more explicit
+    preset: ProjectType.SVELTEKIT,
+    dependencies: ['@sveltejs/kit'],
     matcherFunction: ({ dependencies }) => {
       return dependencies.every(Boolean);
     },
@@ -243,15 +230,24 @@ export const supportedTemplates: TemplateConfiguration[] = [
     },
   },
   {
-    preset: ProjectType.RAX,
-    dependencies: ['rax'],
+    preset: ProjectType.SOLID,
+    dependencies: ['solid-js'],
+    matcherFunction: ({ dependencies }) => {
+      return dependencies.every(Boolean);
+    },
+  },
+  // DO NOT MOVE ANY TEMPLATES BELOW THIS LINE
+  // React is part of every Template, after Storybook is initialized once
+  {
+    preset: ProjectType.WEBPACK_REACT,
+    dependencies: ['react', 'webpack'],
     matcherFunction: ({ dependencies }) => {
       return dependencies.every(Boolean);
     },
   },
   {
-    preset: ProjectType.AURELIA,
-    dependencies: ['aurelia-bootstrapper'],
+    preset: ProjectType.REACT,
+    dependencies: ['react'],
     matcherFunction: ({ dependencies }) => {
       return dependencies.every(Boolean);
     },
@@ -259,7 +255,7 @@ export const supportedTemplates: TemplateConfiguration[] = [
 ];
 
 // A TemplateConfiguration that matches unsupported frameworks
-// AnyFramework matchers can be added to this object to give
+// Framework matchers can be added to this object to give
 // users an "Unsupported framework" message
 export const unsupportedTemplate: TemplateConfiguration = {
   preset: ProjectType.UNSUPPORTED,
@@ -275,7 +271,7 @@ export const unsupportedTemplate: TemplateConfiguration = {
 const notInstallableProjectTypes: ProjectType[] = [
   ProjectType.UNDETECTED,
   ProjectType.UNSUPPORTED,
-  ProjectType.ALREADY_HAS_STORYBOOK,
+  ProjectType.NX,
 ];
 
 export const installableProjectTypes = Object.values(ProjectType)

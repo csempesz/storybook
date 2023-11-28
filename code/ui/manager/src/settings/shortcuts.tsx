@@ -1,18 +1,19 @@
-import React, { Component, ComponentProps, FC } from 'react';
+import type { ComponentProps, FC } from 'react';
+import React, { Component } from 'react';
 import { styled, keyframes } from '@storybook/theming';
 
 import {
   eventToShortcut,
   shortcutToHumanString,
   shortcutMatchesShortcut,
-} from '@storybook/api/shortcut';
-import { Form, Icons } from '@storybook/components';
+} from '@storybook/manager-api';
+import { Button, Form, Icons } from '@storybook/components';
 import SettingsFooter from './SettingsFooter';
 
 const Header = styled.header(({ theme }) => ({
   marginBottom: 20,
   fontSize: theme.typography.size.m3,
-  fontWeight: theme.typography.weight.black,
+  fontWeight: theme.typography.weight.bold,
   alignItems: 'center',
   display: 'flex',
 }));
@@ -123,6 +124,7 @@ const shortcutLabels = {
   aboutPage: 'Go to about page',
   collapseAll: 'Collapse all items on sidebar',
   expandAll: 'Expand all items on sidebar',
+  remount: 'Remount component',
 };
 
 export type Feature = keyof typeof shortcutLabels;
@@ -305,9 +307,14 @@ class ShortcutsScreen extends Component<ShortcutsScreenProps, ShortcutsScreenSta
         <Header>Keyboard shortcuts</Header>
 
         {layout}
-        <Form.Button tertiary small id="restoreDefaultsHotkeys" onClick={this.restoreDefaults}>
+        <Button
+          variant="outline"
+          size="small"
+          id="restoreDefaultsHotkeys"
+          onClick={this.restoreDefaults}
+        >
           Restore defaults
-        </Form.Button>
+        </Button>
 
         <SettingsFooter />
       </Container>

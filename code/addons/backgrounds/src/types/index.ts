@@ -1,4 +1,4 @@
-import { ReactElement } from 'react';
+import type { ReactElement } from 'react';
 
 export interface GlobalState {
   name: string | undefined;
@@ -20,7 +20,7 @@ export interface Background {
 }
 
 export interface BackgroundsParameter {
-  default?: string;
+  default?: string | null;
   disable?: boolean;
   values: Background[];
 }

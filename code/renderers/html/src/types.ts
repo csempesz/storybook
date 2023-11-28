@@ -1,30 +1,41 @@
-import type { ArgsStoryFn, StoryContext as DefaultStoryContext } from '@storybook/csf';
-import { parameters } from './config';
+import type {
+  ArgsStoryFn,
+  StoryContext as DefaultStoryContext,
+  WebRenderer,
+} from '@storybook/types';
+import type { SourceType } from '@storybook/docs-tools';
 
-export type { RenderContext } from '@storybook/core-client';
+export type { RenderContext } from '@storybook/types';
 
 export type StoryFnHtmlReturnType = string | Node;
-
-export interface IStorybookStory {
-  name: string;
-  render: (context: any) => any;
-}
-
-export interface IStorybookSection {
-  kind: string;
-  stories: IStorybookStory[];
-}
 
 export interface ShowErrorArgs {
   title: string;
   description: string;
 }
 
-export type HtmlFramework = {
-  component: string | HTMLElement | ArgsStoryFn<HtmlFramework>;
+/**
+ * @deprecated Use `HtmlRenderer` instead.
+ */
+export type HtmlFramework = HtmlRenderer;
+export interface HtmlRenderer extends WebRenderer {
+  component: string | HTMLElement | ArgsStoryFn<HtmlRenderer>;
   storyResult: StoryFnHtmlReturnType;
-};
+}
 
-export type StoryContext = DefaultStoryContext<HtmlFramework> & {
-  parameters: DefaultStoryContext<HtmlFramework>['parameters'] & typeof parameters;
+export interface Parameters {
+  renderer: 'html';
+  docs?: {
+    story: { inline: boolean };
+    source: {
+      type: SourceType.DYNAMIC;
+      language: 'html';
+      code: any;
+      excludeDecorators: any;
+    };
+  };
+}
+
+export type StoryContext = DefaultStoryContext<HtmlRenderer> & {
+  parameters: DefaultStoryContext<HtmlRenderer>['parameters'] & Parameters;
 };

@@ -4,7 +4,7 @@ import { colors } from '@storybook/node-logger';
 import semver from 'semver';
 import { dedent } from 'ts-dedent';
 import { cache } from '@storybook/core-common';
-import type { VersionCheck } from '@storybook/core-common';
+import type { VersionCheck } from '@storybook/types';
 
 const { STORYBOOK_VERSION_BASE = 'https://storybook.js.org', CI } = process.env;
 
@@ -22,13 +22,13 @@ export const updateCheck = async (version: string): Promise<VersionCheck> => {
         new Promise((res, rej) => global.setTimeout(rej, 1500)),
       ]);
       const data = await fromFetch.json();
-      result = { success: true, data, time };
+      result = { success: true, cached: false, data, time };
       await cache.set('lastUpdateCheck', result);
     } else {
-      result = fromCache;
+      result = { ...fromCache, cached: true };
     }
   } catch (error) {
-    result = { success: false, error, time };
+    result = { success: false, cached: false, error, time };
   }
   return result;
 };
@@ -37,8 +37,9 @@ export function createUpdateMessage(updateInfo: VersionCheck, version: string): 
   let updateMessage;
 
   try {
-    const suffix = semver.prerelease(updateInfo.data.latest.version) ? '--prerelease' : '';
-    const upgradeCommand = `npx storybook@latest upgrade ${suffix}`.trim();
+    const isPrerelease = semver.prerelease(updateInfo.data.latest.version);
+    const suffix = isPrerelease ? '@next upgrade --prerelease' : '@latest upgrade';
+    const upgradeCommand = `npx storybook${suffix}`;
     updateMessage =
       updateInfo.success && semver.lt(version, updateInfo.data.latest.version)
         ? dedent`

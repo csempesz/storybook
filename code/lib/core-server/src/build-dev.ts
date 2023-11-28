@@ -1,42 +1,45 @@
-import type {
-  CLIOptions,
-  LoadOptions,
-  BuilderOptions,
-  Options,
-  StorybookConfig,
-} from '@storybook/core-common';
+import type { BuilderOptions, CLIOptions, LoadOptions, Options } from '@storybook/types';
 import {
-  resolvePathInStorybookCache,
   loadAllPresets,
-  cache,
   loadMainConfig,
+  resolveAddonName,
+  resolvePathInStorybookCache,
+  serverResolve,
+  validateFrameworkName,
 } from '@storybook/core-common';
 import prompts from 'prompts';
-import global from 'global';
+import invariant from 'tiny-invariant';
+import { global } from '@storybook/global';
+import { telemetry } from '@storybook/telemetry';
 
 import { join, resolve } from 'path';
-import { logger } from '@storybook/node-logger';
+import { deprecate } from '@storybook/node-logger';
+import dedent from 'ts-dedent';
+import { readFile } from 'fs-extra';
+import { MissingBuilderError } from '@storybook/core-events/server-errors';
 import { storybookDevServer } from './dev-server';
-import { getReleaseNotesData, getReleaseNotesFailedState } from './utils/release-notes';
 import { outputStats } from './utils/output-stats';
 import { outputStartupInformation } from './utils/output-startup-information';
 import { updateCheck } from './utils/update-check';
 import { getServerPort, getServerChannelUrl } from './utils/server-address';
-import { getBuilders } from './utils/get-builders';
+import { getManagerBuilder, getPreviewBuilder } from './utils/get-builders';
+import { warnOnIncompatibleAddons } from './utils/warnOnIncompatibleAddons';
+import { buildOrThrow } from './utils/build-or-throw';
 
-export async function buildDevStandalone(options: CLIOptions & LoadOptions & BuilderOptions) {
-  const { packageJson, versionUpdates, releaseNotes } = options;
-  const { version } = packageJson;
-
-  // updateInfo and releaseNotesData are cached, so this is typically pretty fast
-  const [port, versionCheck, releaseNotesData] = await Promise.all([
+export async function buildDevStandalone(
+  options: CLIOptions & LoadOptions & BuilderOptions
+): Promise<{ port: number; address: string; networkAddress: string }> {
+  const { packageJson, versionUpdates } = options;
+  invariant(
+    packageJson.version !== undefined,
+    `Expected package.json#version to be defined in the "${packageJson.name}" package}`
+  );
+  // updateInfo are cached, so this is typically pretty fast
+  const [port, versionCheck] = await Promise.all([
     getServerPort(options.port),
     versionUpdates
-      ? updateCheck(version)
-      : Promise.resolve({ success: false, data: {}, time: Date.now() }),
-    releaseNotes
-      ? getReleaseNotesData(version, cache)
-      : Promise.resolve(getReleaseNotesFailedState(version)),
+      ? updateCheck(packageJson.version)
+      : Promise.resolve({ success: false, cached: false, data: {}, time: Date.now() }),
   ]);
 
   if (!options.ci && !options.smokeTest && options.port != null && port !== options.port) {
@@ -52,7 +55,6 @@ export async function buildDevStandalone(options: CLIOptions & LoadOptions & Bui
   /* eslint-disable no-param-reassign */
   options.port = port;
   options.versionCheck = versionCheck;
-  options.releaseNotesData = releaseNotesData;
   options.configType = 'DEVELOPMENT';
   options.configDir = resolve(options.configDir);
   options.outputDir = options.smokeTest
@@ -61,38 +63,89 @@ export async function buildDevStandalone(options: CLIOptions & LoadOptions & Bui
   options.serverChannelUrl = getServerChannelUrl(port, options);
   /* eslint-enable no-param-reassign */
 
-  const { framework } = loadMainConfig(options);
+  const config = await loadMainConfig(options);
+  const { framework } = config;
   const corePresets = [];
 
   const frameworkName = typeof framework === 'string' ? framework : framework?.name;
-  if (frameworkName) {
-    corePresets.push(join(frameworkName, 'preset'));
-  } else {
-    logger.warn(`you have not specified a framework in your ${options.configDir}/main.js`);
+  validateFrameworkName(frameworkName);
+
+  corePresets.push(join(frameworkName, 'preset'));
+
+  try {
+    await warnOnIncompatibleAddons(config);
+  } catch (e) {
+    console.warn('Storybook failed to check addon compatibility', e);
   }
 
-  logger.info('=> Loading presets');
+  // Load first pass: We need to determine the builder
+  // We need to do this because builders might introduce 'overridePresets' which we need to take into account
+  // We hope to remove this in SB8
   let presets = await loadAllPresets({
     corePresets,
-    overridePresets: [],
+    overridePresets: [
+      require.resolve('@storybook/core-server/dist/presets/common-override-preset'),
+    ],
     ...options,
+    isCritical: true,
   });
 
-  const [previewBuilder, managerBuilder] = await getBuilders({ ...options, presets });
+  const { renderer, builder, disableTelemetry } = await presets.apply('core', {});
 
+  if (!builder) {
+    throw new MissingBuilderError();
+  }
+
+  if (!options.disableTelemetry && !disableTelemetry) {
+    if (versionCheck.success && !versionCheck.cached) {
+      telemetry('version-update');
+    }
+  }
+
+  const builderName = typeof builder === 'string' ? builder : builder.name;
+  const [previewBuilder, managerBuilder] = await Promise.all([
+    getPreviewBuilder(builderName, options.configDir),
+    getManagerBuilder(),
+  ]);
+
+  if (builderName.includes('builder-vite')) {
+    const deprecationMessage =
+      dedent(`Using CommonJS in your main configuration file is deprecated with Vite.
+              - Refer to the migration guide at https://github.com/storybookjs/storybook/blob/next/MIGRATION.md#commonjs-with-vite-is-deprecated`);
+
+    const mainJsPath = serverResolve(resolve(options.configDir || '.storybook', 'main')) as string;
+    if (/\.c[jt]s$/.test(mainJsPath)) {
+      deprecate(deprecationMessage);
+    }
+    const mainJsContent = await readFile(mainJsPath, 'utf-8');
+    // Regex that matches any CommonJS-specific syntax, stolen from Vite: https://github.com/vitejs/vite/blob/91a18c2f7da796ff8217417a4bf189ddda719895/packages/vite/src/node/ssr/ssrExternal.ts#L87
+    const CJS_CONTENT_REGEX =
+      /\bmodule\.exports\b|\bexports[.[]|\brequire\s*\(|\bObject\.(?:defineProperty|defineProperties|assign)\s*\(\s*exports\b/;
+    if (CJS_CONTENT_REGEX.test(mainJsContent)) {
+      deprecate(deprecationMessage);
+    }
+  }
+
+  const resolvedRenderer = renderer && resolveAddonName(options.configDir, renderer, options);
+
+  // Load second pass: all presets are applied in order
   presets = await loadAllPresets({
     corePresets: [
-      require.resolve('./presets/common-preset'),
+      require.resolve('@storybook/core-server/dist/presets/common-preset'),
       ...(managerBuilder.corePresets || []),
       ...(previewBuilder.corePresets || []),
+      ...(resolvedRenderer ? [resolvedRenderer] : []),
       ...corePresets,
-      require.resolve('./presets/babel-cache-preset'),
+      require.resolve('@storybook/core-server/dist/presets/babel-cache-preset'),
     ],
-    overridePresets: previewBuilder.overridePresets,
+    overridePresets: [
+      ...(previewBuilder.overridePresets || []),
+      require.resolve('@storybook/core-server/dist/presets/common-override-preset'),
+    ],
     ...options,
   });
 
-  const features = await presets.apply<StorybookConfig['features']>('features');
+  const features = await presets.apply('features');
   global.FEATURES = features;
 
   const fullOptions: Options = {
@@ -101,15 +154,14 @@ export async function buildDevStandalone(options: CLIOptions & LoadOptions & Bui
     features,
   };
 
-  const { address, networkAddress, managerResult, previewResult } = await storybookDevServer(
-    fullOptions
+  const { address, networkAddress, managerResult, previewResult } = await buildOrThrow(async () =>
+    storybookDevServer(fullOptions)
   );
 
-  const previewTotalTime = previewResult && previewResult.totalTime;
-  const managerTotalTime = managerResult && managerResult.totalTime;
-
-  const previewStats = previewResult && previewResult.stats;
-  const managerStats = managerResult && managerResult.stats;
+  const previewTotalTime = previewResult?.totalTime;
+  const managerTotalTime = managerResult?.totalTime;
+  const previewStats = previewResult?.stats;
+  const managerStats = managerResult?.stats;
 
   if (options.webpackStatsJson) {
     const target = options.webpackStatsJson === true ? options.outputDir : options.webpackStatsJson;
@@ -131,21 +183,23 @@ export async function buildDevStandalone(options: CLIOptions & LoadOptions & Bui
     // eslint-disable-next-line no-console
     console.log(problems.map((p) => p.stack));
     process.exit(problems.length > 0 ? 1 : 0);
-    return;
+  } else {
+    const name =
+      frameworkName.split('@storybook/').length > 1
+        ? frameworkName.split('@storybook/')[1]
+        : frameworkName;
+
+    if (!options.quiet) {
+      outputStartupInformation({
+        updateInfo: versionCheck,
+        version: packageJson.version,
+        name,
+        address,
+        networkAddress,
+        managerTotalTime,
+        previewTotalTime,
+      });
+    }
   }
-
-  const name =
-    frameworkName.split('@storybook/').length > 1
-      ? frameworkName.split('@storybook/')[1]
-      : frameworkName;
-
-  outputStartupInformation({
-    updateInfo: versionCheck,
-    version,
-    name,
-    address,
-    networkAddress,
-    managerTotalTime,
-    previewTotalTime,
-  });
+  return { port, address, networkAddress };
 }

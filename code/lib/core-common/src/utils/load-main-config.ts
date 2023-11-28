@@ -1,10 +1,22 @@
 import path from 'path';
-import { serverRequire } from './interpret-require';
+import type { StorybookConfig } from '@storybook/types';
+import { serverRequire, serverResolve } from './interpret-require';
 import { validateConfigurationFiles } from './validate-configuration-files';
-import { StorybookConfig } from '../types';
 
-export function loadMainConfig({ configDir }: { configDir: string }): StorybookConfig {
-  validateConfigurationFiles(configDir);
+export async function loadMainConfig({
+  configDir = '.storybook',
+  noCache = false,
+}: {
+  configDir: string;
+  noCache?: boolean;
+}): Promise<StorybookConfig> {
+  await validateConfigurationFiles(configDir);
 
-  return serverRequire(path.resolve(configDir, 'main'));
+  const mainJsPath = serverResolve(path.resolve(configDir, 'main')) as string;
+
+  if (noCache && mainJsPath && require.cache[mainJsPath]) {
+    delete require.cache[mainJsPath];
+  }
+
+  return serverRequire(mainJsPath);
 }

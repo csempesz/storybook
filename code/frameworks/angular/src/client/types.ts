@@ -1,50 +1,53 @@
-import type {
+import { Provider, importProvidersFrom } from '@angular/core';
+import { ApplicationConfig } from '@angular/platform-browser';
+import {
   Parameters as DefaultParameters,
   StoryContext as DefaultStoryContext,
-} from '@storybook/csf';
+  WebRenderer,
+} from '@storybook/types';
 
 export interface NgModuleMetadata {
+  /**
+   * List of components, directives, and pipes that belong to your component.
+   */
   declarations?: any[];
   entryComponents?: any[];
+  /**
+   * List of modules that should be available to the root Storybook Component and all its children.
+   * If you want to register application providers or if you want to use the forRoot() pattern, please use the `applicationConfig` decorator in combination with the importProvidersFrom helper function from @angular/core instead.
+   */
   imports?: any[];
   schemas?: any[];
-  providers?: any[];
+  /**
+   * List of providers that should be available on the root component and all its children.
+   * Use the `applicationConfig` decorator to register environemt and application-wide providers.
+   */
+  providers?: Provider[];
 }
 export interface ICollection {
   [p: string]: any;
 }
 
-export interface IStorybookStory {
-  name: string;
-  render: (context: any) => any;
-}
-
-export interface IStorybookSection {
-  kind: string;
-  stories: IStorybookStory[];
-}
-
 export interface StoryFnAngularReturnType {
-  /** @deprecated `component` story input is deprecated, and will be removed in Storybook 7.0. */
-  component?: any;
   props?: ICollection;
-  /** @deprecated `propsMeta` story input is deprecated, and will be removed in Storybook 7.0. */
-  propsMeta?: ICollection;
   moduleMetadata?: NgModuleMetadata;
+  applicationConfig?: ApplicationConfig;
   template?: string;
   styles?: string[];
   userDefinedTemplate?: boolean;
 }
 
-export type AngularFramework = {
+/**
+ * @deprecated Use `AngularRenderer` instead.
+ */
+export type AngularFramework = AngularRenderer;
+export interface AngularRenderer extends WebRenderer {
   component: any;
   storyResult: StoryFnAngularReturnType;
-};
+}
 
 export type Parameters = DefaultParameters & {
-  /** Uses legacy angular rendering engine that use dynamic component */
-  angularLegacyRendering?: boolean;
   bootstrapModuleOptions?: unknown;
 };
 
-export type StoryContext = DefaultStoryContext<AngularFramework> & { parameters: Parameters };
+export type StoryContext = DefaultStoryContext<AngularRenderer> & { parameters: Parameters };

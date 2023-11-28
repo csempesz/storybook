@@ -1,13 +1,10 @@
 {
   "extends": "../../tsconfig.json",
-  "compilerOptions": {},
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "allowJs": true,
+    "strict": false
+  },
   "include": ["src/**/*"],
-  "exclude": [
-    "src/**/*.test.*",
-    "src/**/tests/**/*",
-    "src/**/__tests__/**/*",
-    "src/**/*.stories.*",
-    "src/**/*.mockdata.*",
-    "src/**/__testfixtures__/**"
-  ]
+  "exclude": ["node_modules", "__testfixtures__", "__tests__"]
 }

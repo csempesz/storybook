@@ -6,7 +6,7 @@ import type { StorybookConfig } from '@storybook/react-webpack5';
 const config: StorybookConfig = {
   stories: [
     '../../ui/manager/src/**/*.stories.@(ts|tsx|js|jsx|mdx)',
-    '../../lib/components/src/**/*.stories.@(ts|tsx|js|jsx|mdx)',
+    '../../ui/components/src/**/*.stories.@(ts|tsx|js|jsx|mdx)',
     './../../addons/docs/**/*.stories.@(ts|tsx|js|jsx|mdx)',
     './../../addons/interactions/**/*.stories.@(ts|tsx|js|jsx|mdx)',
   ],
@@ -14,7 +14,6 @@ const config: StorybookConfig = {
     {
       name: '@storybook/addon-docs',
       options: {
-        transcludeMarkdown: true,
         sourceLoaderOptions: null,
       },
     },
@@ -31,8 +30,6 @@ const config: StorybookConfig = {
   },
   logLevel: 'debug',
   features: {
-    interactionsDebugger: true,
-    breakingChangesV7: false,
     storyStoreV7: false,
   },
   framework: {

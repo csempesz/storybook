@@ -1,7 +1,9 @@
 ```ts
 // MyComponent.stories.ts
 
-import { Meta, moduleMetadata, Story } from '@storybook/angular';
+import type { Meta, StoryObj } from '@storybook/angular';
+
+import { moduleMetadata, argsToTemplate } from '@storybook/angular';
 
 import { CommonModule } from '@angular/common';
 
@@ -9,12 +11,7 @@ import { Layout } from './Layout.component';
 
 import { MyComponent } from './MyComponent.component';
 
-export default {
-  /* 👇 The title prop is optional.
-   * See https://storybook.js.org/docs/7.0/angular/configure/overview#configure-story-loading
-   * to learn how to generate automatic titles
-   */
-  title: 'MyComponent',
+const meta: Meta<MyComponent> = {
   component: MyComponent,
   decorators: [
     moduleMetadata({
@@ -22,17 +19,22 @@ export default {
       imports: [CommonModule],
     }),
   ],
-} as Meta;
+};
 
+export default meta;
+type Story = StoryObj<MyComponent>;
+
+// This story uses a render function to fully control how the component renders.
 export const Example: Story = {
-  render: () => ({
+  render: (args) => ({
+    props: args,
     template: `
       <app-layout>
         <header>
           <h1>Example</h1>
         </header>
         <article>
-          <app-my-component></app-my-component>
+          <app-my-component ${argsToTemplate(args)}></app-my-component>
         </article>
       </app-layout>
     `,

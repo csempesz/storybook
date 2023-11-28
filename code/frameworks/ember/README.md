@@ -12,7 +12,7 @@ So you can develop UI components in isolation without worrying about app specifi
 
 ```sh
 cd my-ember-app
-npx storybook init
+npx storybook@latest init
 ```
 
 For more information visit: [storybook.js.org](https://storybook.js.org)
@@ -24,8 +24,8 @@ You can also build a [static version](https://storybook.js.org/docs/ember/sharin
 
 ## Docs
 
-- [Basics](https://storybook.js.org/docs/ember/get-started/introduction)
-- [Configurations](https://storybook.js.org/docs/ember/configure/overview)
+- [Basics](https://storybook.js.org/docs/ember/get-started)
+- [Configurations](https://storybook.js.org/docs/ember/configure)
 - [Addons](https://storybook.js.org/docs/ember/configure/storybook-addons)
 
 ## Working with polyfills
@@ -39,11 +39,14 @@ This example also assume that you already have the package in your `package.json
 In your `.storybook/main.js` you can add the following lines:
 
 ```javascript
-const namedBlockPolyfill = require('ember-named-blocks-polyfill/lib/named-blocks-polyfill-plugin');
+import namedBlockPolyfill from 'ember-named-blocks-polyfill/lib/named-blocks-polyfill-plugin';
 
-module.exports = {
-  emberOptions: {
-    polyfills: [namedBlockPolyfill],
+export default {
+  framework: {
+    name: '@storybook/ember',
+    options: {
+      polyfills: [namedBlockPolyfill],
+    }
   },
   [...]
 };

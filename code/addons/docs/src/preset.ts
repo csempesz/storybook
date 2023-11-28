@@ -1,125 +1,112 @@
 import fs from 'fs-extra';
+import { dirname, join } from 'path';
 import remarkSlug from 'remark-slug';
 import remarkExternalLinks from 'remark-external-links';
-import global from 'global';
+import { dedent } from 'ts-dedent';
 
-import type { DocsOptions, IndexerOptions, Options, StoryIndexer } from '@storybook/core-common';
-import { logger } from '@storybook/node-logger';
+import type { DocsOptions, Indexer, Options, PresetProperty } from '@storybook/types';
+import type { CsfPluginOptions } from '@storybook/csf-plugin';
+import type { JSXOptions, CompileOptions } from '@storybook/mdx2-csf';
+import { global } from '@storybook/global';
 import { loadCsf } from '@storybook/csf-tools';
+import { logger } from '@storybook/node-logger';
+import { ensureReactPeerDeps } from './ensure-react-peer-deps';
 
-// for frameworks that are not working with react, we need to configure
-// the jsx to transpile mdx, for now there will be a flag for that
-// for more complex solutions we can find alone that we need to add '@babel/plugin-transform-react-jsx'
-type BabelParams = {
-  babelOptions?: any;
-  mdxBabelOptions?: any;
-  configureJSX?: boolean;
-};
-function createBabelOptions({ babelOptions, mdxBabelOptions, configureJSX }: BabelParams) {
-  const babelPlugins = mdxBabelOptions?.plugins || babelOptions?.plugins || [];
-
-  const filteredBabelPlugins = babelPlugins.filter((p: any) => {
-    const name = Array.isArray(p) ? p[0] : p;
-    if (typeof name === 'string') {
-      return !name.includes('plugin-transform-react-jsx');
-    }
-    return true;
-  });
-
-  const jsxPlugin = [
-    require.resolve('@babel/plugin-transform-react-jsx'),
-    { pragma: 'React.createElement', pragmaFrag: 'React.Fragment' },
-  ];
-  const plugins = configureJSX ? [...filteredBabelPlugins, jsxPlugin] : babelPlugins;
-  return {
-    // don't use the root babelrc by default (users can override this in mdxBabelOptions)
-    babelrc: false,
-    configFile: false,
-    ...babelOptions,
-    ...mdxBabelOptions,
-    plugins,
-  };
-}
-
-export async function webpack(
+async function webpack(
   webpackConfig: any = {},
-  options: Options &
-    BabelParams & { sourceLoaderOptions: any; transcludeMarkdown: boolean } /* & Parameters<
+  options: Options & {
+    /**
+     * @deprecated
+     * Use `jsxOptions` to customize options used by @babel/preset-react
+     */
+    configureJsx: boolean;
+    /**
+     * @deprecated
+     * Use `jsxOptions` to customize options used by @babel/preset-react
+     */
+    mdxBabelOptions?: any;
+    /** @deprecated */
+    sourceLoaderOptions: any;
+    csfPluginOptions: CsfPluginOptions | null;
+    jsxOptions?: JSXOptions;
+    mdxPluginOptions?: CompileOptions;
+  } /* & Parameters<
       typeof createCompiler
     >[0] */
 ) {
-  const resolvedBabelLoader = require.resolve('babel-loader');
-
   const { module = {} } = webpackConfig;
 
   // it will reuse babel options that are already in use in storybook
   // also, these babel options are chained with other presets.
   const {
-    babelOptions,
+    csfPluginOptions = {},
+    jsxOptions = {},
+    sourceLoaderOptions = null,
+    configureJsx,
     mdxBabelOptions,
-    configureJSX = true,
-    sourceLoaderOptions = { injectStoryParameters: true },
-    transcludeMarkdown = false,
+    mdxPluginOptions = {},
   } = options;
 
-  const mdxLoaderOptions = {
-    // whether to skip storybook files, useful for docs only mdx or md files
+  const mdxLoaderOptions: CompileOptions = await options.presets.apply('mdxLoaderOptions', {
     skipCsf: true,
-    remarkPlugins: [remarkSlug, remarkExternalLinks],
-  };
+    ...mdxPluginOptions,
+    mdxCompileOptions: {
+      providerImportSource: join(
+        dirname(require.resolve('@storybook/addon-docs/package.json')),
+        '/dist/shims/mdx-react-shim'
+      ),
+      ...mdxPluginOptions.mdxCompileOptions,
+      remarkPlugins: [remarkSlug, remarkExternalLinks].concat(
+        mdxPluginOptions?.mdxCompileOptions?.remarkPlugins ?? []
+      ),
+    },
+    jsxOptions,
+  });
 
-  const mdxVersion = global.FEATURES?.previewMdx2 ? 'MDX2' : 'MDX1';
+  if (sourceLoaderOptions) {
+    throw new Error(dedent`
+      Addon-docs no longer uses source-loader in 7.0.
+
+      To update your configuration, please see migration instructions here:
+
+      https://github.com/storybookjs/storybook/blob/next/MIGRATION.md#dropped-source-loader--storiesof-static-snippets
+    `);
+  }
+
+  if (mdxBabelOptions || configureJsx) {
+    throw new Error(dedent`
+      Addon-docs no longer uses configureJsx or mdxBabelOptions in 7.0.
+
+      To update your configuration, please see migration instructions here:
+
+      https://github.com/storybookjs/storybook/blob/next/MIGRATION.md#dropped-addon-docs-manual-babel-configuration
+    `);
+  }
+
+  const mdxVersion = global.FEATURES?.legacyMdx1 ? 'MDX1' : 'MDX2';
   logger.info(`Addon-docs: using ${mdxVersion}`);
 
-  const mdxLoader = global.FEATURES?.previewMdx2
-    ? require.resolve('@storybook/mdx2-csf/loader')
-    : require.resolve('@storybook/mdx1-csf/loader');
-
-  // set `sourceLoaderOptions` to `null` to disable for manual configuration
-  const sourceLoader = sourceLoaderOptions
-    ? [
-        {
-          test: /\.(stories|story)\.[tj]sx?$/,
-          loader: require.resolve('@storybook/source-loader'),
-          options: { ...sourceLoaderOptions, inspectLocalDependencies: true },
-          enforce: 'pre',
-        },
-      ]
-    : [];
-
-  let rules = module.rules || [];
-  if (transcludeMarkdown) {
-    rules = [
-      ...rules.filter((rule: any) => rule.test?.toString() !== '/\\.md$/'),
-      {
-        test: /\.md$/,
-        use: [
-          {
-            loader: resolvedBabelLoader,
-            options: createBabelOptions({ babelOptions, mdxBabelOptions, configureJSX }),
-          },
-          {
-            loader: mdxLoader,
-            options: mdxLoaderOptions,
-          },
-        ],
-      },
-    ];
-  }
+  const mdxLoader = global.FEATURES?.legacyMdx1
+    ? require.resolve('@storybook/mdx1-csf/loader')
+    : require.resolve('@storybook/mdx2-csf/loader');
 
   const result = {
     ...webpackConfig,
+    plugins: [
+      ...(webpackConfig.plugins || []),
+
+      ...(csfPluginOptions
+        ? [(await import('@storybook/csf-plugin')).webpack(csfPluginOptions)]
+        : []),
+    ],
+
     module: {
       ...module,
       rules: [
-        ...rules,
+        ...(module.rules || []),
         {
           test: /(stories|story)\.mdx$/,
           use: [
-            {
-              loader: resolvedBabelLoader,
-              options: createBabelOptions({ babelOptions, mdxBabelOptions, configureJSX }),
-            },
             {
               loader: mdxLoader,
               options: {
@@ -134,16 +121,11 @@ export async function webpack(
           exclude: /(stories|story)\.mdx$/,
           use: [
             {
-              loader: resolvedBabelLoader,
-              options: createBabelOptions({ babelOptions, mdxBabelOptions, configureJSX }),
-            },
-            {
               loader: mdxLoader,
               options: mdxLoaderOptions,
             },
           ],
         },
-        ...sourceLoader,
       ],
     },
   };
@@ -151,31 +133,73 @@ export async function webpack(
   return result;
 }
 
-export const storyIndexers = async (indexers: StoryIndexer[] | null) => {
-  const mdxIndexer = async (fileName: string, opts: IndexerOptions) => {
+export const createStoriesMdxIndexer = (legacyMdx1?: boolean): Indexer => ({
+  test: /(stories|story)\.mdx$/,
+  createIndex: async (fileName, opts) => {
     let code = (await fs.readFile(fileName, 'utf-8')).toString();
-    // @ts-expect-error (Converted from ts-ignore)
-    const { compile } = global.FEATURES?.previewMdx2
-      ? await import('@storybook/mdx2-csf')
-      : await import('@storybook/mdx1-csf');
+    const { compile } = legacyMdx1
+      ? await import('@storybook/mdx1-csf')
+      : await import('@storybook/mdx2-csf');
     code = await compile(code, {});
-    return loadCsf(code, { ...opts, fileName }).parse();
-  };
-  return [
-    {
-      test: /(stories|story)\.mdx$/,
-      indexer: mdxIndexer,
-      addDocsTemplate: true,
-    },
-    ...(indexers || []),
-  ];
-};
+    const csf = loadCsf(code, { ...opts, fileName }).parse();
 
-export const docs = (docsOptions: DocsOptions) => {
+    const { indexInputs, stories } = csf;
+
+    return indexInputs.map((input, index) => {
+      const docsOnly = stories[index].parameters?.docsOnly;
+      const tags = input.tags ? input.tags : [];
+      if (docsOnly) {
+        tags.push('stories-mdx-docsOnly');
+      }
+      // the mdx-csf compiler automatically adds the 'stories-mdx' tag to meta, here' we're just making sure it is always there
+      if (!tags.includes('stories-mdx')) {
+        tags.push('stories-mdx');
+      }
+      return { ...input, tags };
+    });
+  },
+});
+
+const indexers: PresetProperty<'experimental_indexers'> = (existingIndexers) =>
+  [createStoriesMdxIndexer(global.FEATURES?.legacyMdx1)].concat(existingIndexers || []);
+
+const docs = (docsOptions: DocsOptions) => {
   return {
     ...docsOptions,
-    enabled: true,
     defaultName: 'Docs',
-    docsPage: true,
+    autodocs: 'tag',
   };
 };
+
+export const addons: PresetProperty<'addons'> = [
+  require.resolve('@storybook/react-dom-shim/dist/preset'),
+];
+
+export const viteFinal = async (config: any, options: Options) => {
+  const { plugins = [] } = config;
+  const { mdxPlugin } = await import('./plugins/mdx-plugin');
+
+  plugins.push(mdxPlugin(options));
+
+  return config;
+};
+
+/*
+ * This is a workaround for https://github.com/Swatinem/rollup-plugin-dts/issues/162
+ * something down the dependency chain is using typescript namespaces, which are not supported by rollup-plugin-dts
+ */
+const webpackX = webpack as any;
+const indexersX = indexers as any;
+const docsX = docs as any;
+
+ensureReactPeerDeps();
+
+const optimizeViteDeps = [
+  '@mdx-js/react',
+  '@storybook/addon-docs > acorn-jsx',
+  '@storybook/addon-docs',
+  '@storybook/addon-essentials/docs/mdx-react-shim',
+  'markdown-to-jsx',
+];
+
+export { webpackX as webpack, indexersX as experimental_indexers, docsX as docs, optimizeViteDeps };

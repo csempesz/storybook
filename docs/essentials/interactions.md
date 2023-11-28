@@ -10,13 +10,15 @@ Stories isolate and capture component states in a structured manner. While devel
 
 For example, clicking a button to open/close a dialog box, dragging a list item to reorder it, or filling out a form to check for validation errors. To test those behaviors, you have to interact with the components as a user would. Interactive stories enable you to automate these interactions using a play function. They are small snippets of code that run once the story finishes rendering, emulating the exact steps a user would take to interact with the component.
 
-### Powered by Testing Library and Jest
+### Powered by Testing Library and Vitest
 
-The interactions are written using a Storybook-instrumented version of [Testing Library](https://testing-library.com/) and [Jest](https://jestjs.io/). That gives you a familiar developer-friendly syntax to interact with the DOM and make assertions, but with extra telemetry to help with debugging.
+The interactions are written using a package called `@storybook/test`. It provides Storybook-instrumented versions of [Testing Library](https://testing-library.com/) and [Vitest](https://vitest.dev). That gives you a familiar developer-friendly syntax to interact with the DOM and make assertions, but with extra telemetry to help with debugging.
 
-## Installation
+## Set up the interactions addon
 
-Since Interactions is still experimental, it doesn't yet ship with Storybook by default. As such, you'll have to install it. You may also want to add our wrappers for Testing Library and Jest.
+By default, the [`@storybook/addon-interactions`](https://storybook.js.org/addons/@storybook/addon-interactions/) is already installed and configured if you're adding Storybook for new projects. If you're migrating from a previous version of Storybook, you'll need to install it manually.
+
+Run the following command to install the interactions addon and related dependencies.
 
 <!-- prettier-ignore-start -->
 
@@ -24,45 +26,53 @@ Since Interactions is still experimental, it doesn't yet ship with Storybook by 
   paths={[
     'common/storybook-addon-interactions-addon-full-install.yarn.js.mdx',
     'common/storybook-addon-interactions-addon-full-install.npm.js.mdx',
+    'common/storybook-addon-interactions-addon-full-install.pnpm.js.mdx',
   ]}
 />
 
 <!-- prettier-ignore-end -->
 
-Next, update [`.storybook/main.js`](../configure/overview.md#configure-story-rendering) to the following:
+Next, update [`.storybook/main.js|ts`](../configure/index.md#configure-story-rendering) to the following:
 
 <!-- prettier-ignore-start -->
 
 <CodeSnippets
   paths={[
     'common/storybook-interactions-addon-registration.js.mdx',
+    'common/storybook-interactions-addon-registration.ts.mdx',
   ]}
 />
 
 <!-- prettier-ignore-end -->
 
-<div class="aside">
+<Callout variant="info" icon="💡">
 
-💡 Make sure to list `@storybook/addon-interactions` **after** the [`@storybook/addon-essentials`](./introduction.md) addon (or the [`@storybook/addon-actions`](./actions.md) if you've installed it individually).
+Make sure to list `@storybook/addon-interactions` **after** the [`@storybook/addon-essentials`](./index.md) addon (or the [`@storybook/addon-actions`](./actions.md) if you've installed it individually).
 
-</div>
+</Callout>
 
 Now when you run Storybook, the Interactions addon will be enabled.
 
 ![Storybook Interactions installed and registered](./addon-interactions-installed-registered.png)
 
-## Writing interactions
+## Write an interaction test
 
 Interactions run as part of the `play` function of your stories. We rely on Testing Library to do the heavy lifting.
 
-Make sure to import the Storybook wrappers for Jest and Testing Library rather than importing Jest and Testing Library directly.
+Make sure to import the Storybook wrappers for Vitest and Testing Library via `@storybook/test` rather than importing the original packages directly.
 
 <!-- prettier-ignore-start -->
 
 <CodeSnippets
   paths={[
+    'angular/storybook-interactions-play-function.ts.mdx',
+    'web-components/storybook-interactions-play-function.js.mdx',
+    'web-components/storybook-interactions-play-function.ts.mdx',
     'common/storybook-interactions-play-function.js.mdx',
+    'common/storybook-interactions-play-function.ts.mdx',
   ]}
+  usesCsf3
+  csf2Path="essentials/interactions#snippet-storybook-interactions-play-function"
 />
 
 <!-- prettier-ignore-end -->
@@ -72,3 +82,9 @@ The above example uses the `canvasElement` to scope your element queries to the 
 While you can refer to the [Testing Library documentation](https://testing-library.com/docs/) for details on how to use it, there's an important detail that's different when using the Storybook wrapper: **method invocations must be `await`-ed**. It allows you to step back and forth through your interactions using the debugger.
 
 Any `args` that have been marked as an Action, either using the [argTypes annotation](./actions.md#action-argtype-annotation) or the [argTypesRegex](./actions.md#automatically-matching-args), will be automatically converted to a [Jest mock function](https://jestjs.io/docs/mock-function-api) (spy). This allows you to make assertions about calls to these functions.
+
+<Callout variant="info">
+
+To mock functions in your Storybook stories for reliable and isolated component testing, use the `jest` import from `@storybook/jest`. This allows you to avoid configuring Jest globally in your project.
+
+</Callout>

@@ -1,5 +1,5 @@
-import { addons } from '@storybook/addons';
-import Events from '@storybook/core-events';
+import { addons } from '@storybook/preview-api';
+import { DOCS_RENDERED, STORY_CHANGED } from '@storybook/core-events';
 import { AbstractRenderer } from './AbstractRenderer';
 import { StoryFnAngularReturnType, Parameters } from '../types';
 
@@ -22,8 +22,8 @@ export class DocsRenderer extends AbstractRenderer {
      * rendered in the doc. But one event could be enough for the whole docs
      *
      */
-    channel.once(Events.STORY_CHANGED, async () => {
-      await DocsRenderer.resetPlatformBrowserDynamic();
+    channel.once(STORY_CHANGED, async () => {
+      await DocsRenderer.resetApplications();
     });
 
     /**
@@ -31,14 +31,16 @@ export class DocsRenderer extends AbstractRenderer {
      * when doc re render. Allows to call ngOnDestroy of angular
      * for previous component
      */
-    channel.once(Events.DOCS_RENDERED, async () => {
-      await DocsRenderer.resetPlatformBrowserDynamic();
+    channel.once(DOCS_RENDERED, async () => {
+      await DocsRenderer.resetApplications();
     });
 
     await super.render({ ...options, forced: false });
   }
 
-  async beforeFullRender(): Promise<void> {}
+  async beforeFullRender(domNode?: HTMLElement): Promise<void> {
+    DocsRenderer.resetApplications(domNode);
+  }
 
   async afterFullRender(): Promise<void> {
     await AbstractRenderer.resetCompiledComponents();

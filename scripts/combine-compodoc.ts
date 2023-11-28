@@ -3,16 +3,17 @@
 // then combine the results into one large documentation.json
 
 import { join, resolve } from 'path';
-import execa from 'execa';
 import { realpath, readFile, writeFile, lstat } from 'fs-extra';
-import glob from 'glob';
+import { globSync } from 'glob';
 import { directory } from 'tempy';
+import { execaCommand } from 'execa';
+import { esMain } from './utils/esmain';
 
 const logger = console;
 
 // Find all symlinks in a directory. There may be more efficient ways to do this, but this works.
 async function findSymlinks(dir: string) {
-  const potentialDirs = await glob.sync(`${dir}/**/*/`);
+  const potentialDirs = await globSync(`${dir}/**/*/`);
 
   return (
     await Promise.all(
@@ -37,7 +38,7 @@ async function run(cwd: string) {
     dirs.map(async (dir) => {
       const outputDir = directory();
       const resolvedDir = await realpath(dir);
-      await execa.command(
+      await execaCommand(
         `yarn compodoc ${resolvedDir} -p ./tsconfig.json -e json -d ${outputDir}`,
         { cwd }
       );
@@ -67,7 +68,7 @@ async function run(cwd: string) {
   await writeFile(join(cwd, 'documentation.json'), JSON.stringify(documentation));
 }
 
-if (require.main === module) {
+if (esMain(import.meta.url)) {
   run(resolve(process.argv[2]))
     .then(() => process.exit(0))
     .catch((err) => {

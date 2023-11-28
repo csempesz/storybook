@@ -1,17 +1,16 @@
 /// <reference types="webpack-env" />
 
-import global from 'global';
+import { global } from '@storybook/global';
+
+import './globals';
 
 const { window, EventSource } = global;
 
-export * from './globals';
-
 export * from './public-types';
-export * from './public-api';
 export * from './framework-api';
 
 // TODO: disable HMR and do full page loads because of customElements.define
-if (module && module.hot && module.hot.decline) {
+if (typeof module !== 'undefined' && module?.hot?.decline) {
   module.hot.decline();
 
   // forcing full reloads for customElements as elements can only be defined once per page
